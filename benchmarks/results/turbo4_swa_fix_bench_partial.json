@@ -1,0 +1,29 @@
+[
+  {
+    "note": "MANUAL BACKUP - turbo4 SWA fix benchmark results (partial, from terminal output)",
+    "date": "2026-06-09",
+    "build": "TheTom/llama-cpp-turboquant (feature/turboquant-kv-cache, commit 7d9715f)",
+    "gpu": "AMD Radeon AI PRO R9700 (gfx1201, RDNA4, 32GB VRAM)",
+    "model": "Gemma-4-31B-it Q4_K_M (17.46 GiB)",
+    "cache_type_k": "q8_0",
+    "cache_type_v": "turbo4",
+    "flash_attn": true,
+    "batch_size": 8192,
+    "ubatch_size": 2048,
+    "results": [
+      {
+        "ctx": 4096,
+        "note": "Quick test, not full benchmark",
+        "pp_tps": 423.2,
+        "tg_tps": null,
+        "source": "terminal output"
+      }
+    ],
+    "pending": [
+      {"ctx": 16384, "status": "completed, waiting for output"},
+      {"ctx": 32768, "status": "completed, waiting for output"},
+      {"ctx": 65536, "status": "completed, waiting for output"},
+      {"ctx": 131072, "status": "running"}
+    ]
+  }
+]
