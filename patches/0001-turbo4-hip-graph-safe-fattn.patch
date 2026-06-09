@@ -1,0 +1,103 @@
+diff --git a/ggml/src/ggml-cuda/fattn-common.cuh b/ggml/src/ggml-cuda/fattn-common.cuh
+index d3e95f6..f0bc2d1 100644
+--- a/ggml/src/ggml-cuda/fattn-common.cuh
++++ b/ggml/src/ggml-cuda/fattn-common.cuh
+@@ -1298,17 +1298,41 @@ void launch_fattn(
+     const int nsm = ggml_cuda_info().devices[id].nsm;
+ 
+ #ifdef GGML_USE_HIP
+-    // HIP/ROCm: bypass the memory pool for f16 temp buffers.
+-    // The legacy pool (ggml_cuda_pool_leg) retains peak-sized allocations permanently.
+-    // For quantized KV dequant, this means the f16 temp buffer stays allocated,
+-    // consuming more VRAM than the quantized KV compression saves — causing OOM.
+-    // Using raw alloc+free ensures the memory is released after the kernel completes.
++    // HIP/ROCm: the f16 dequant temp buffers for quantized KV need two strategies
++    // depending on whether the current launch is being captured into a HIP graph:
++    //
++    //  * NOT capturing (large prefill batches run eagerly): use raw cudaMalloc/cudaFree
++    //    so the (potentially multi-GB) f16 dequant buffer is released immediately. The
++    //    legacy pool (no VMM on gfx1201) would otherwise retain it at peak size and
++    //    negate the quantized-KV VRAM savings -> OOM.
++    //
++    //  * Capturing (small decode batches captured into a graph): raw cudaMalloc/cudaFree/
++    //    cudaStreamSynchronize are forbidden during capture ("operation not permitted
++    //    when stream is capturing"). Use the memory pool instead. ggml resets graph
++    //    warmup and runs eagerly whenever tensor sizes change, so the pool buffer is
++    //    always warmed at the right size before capture and alloc() reuses it without
++    //    calling cudaMalloc during capture.
++    //
++    // Small batches (Q->ne[1] <= 8) always route through the pool so the warmup run
++    // populates it; these match the decode/speculative cases that get captured.
++    cudaStreamCaptureStatus fa_capture_status = cudaStreamCaptureStatusNone;
++    CUDA_CHECK(cudaStreamIsCapturing(main_stream, &fa_capture_status));
++    const bool fa_use_pool = (fa_capture_status != cudaStreamCaptureStatusNone) || (Q->ne[1] <= 8);
++
+     struct hip_f16_alloc {
+-        half * ptr = nullptr;
+-        cudaStream_t stream;
+-        hip_f16_alloc(cudaStream_t s) : stream(s) {}
++        half           * ptr  = nullptr;
++        ggml_cuda_pool * mem_pool = nullptr;  // non-null => allocate from the pool (graph-safe)
++        size_t           pool_size = 0;
++        cudaStream_t     stream;
++        hip_f16_alloc(cudaStream_t s, ggml_cuda_pool * p) : mem_pool(p), stream(s) {}
+         ~hip_f16_alloc() {
+-            if (ptr) {
++            if (!ptr) {
++                return;
++            }
++            if (mem_pool) {
++                // Pool free is plain bookkeeping (no CUDA calls) -> safe during capture.
++                mem_pool->free(ptr, pool_size);
++            } else {
+                 // Cast to void: hipStreamSynchronize / hipFree are [[nodiscard]] under
+                 // HIP's -Werror policy; we're in a destructor and can't propagate errors.
+                 (void) cudaStreamSynchronize(stream);
+@@ -1316,11 +1340,15 @@ void launch_fattn(
+             }
+         }
+         void alloc(size_t nelements) {
+-            CUDA_CHECK(cudaMalloc(&ptr, nelements * sizeof(half)));
++            if (mem_pool) {
++                ptr = (half *) mem_pool->alloc(nelements * sizeof(half), &pool_size);
++            } else {
++                CUDA_CHECK(cudaMalloc(&ptr, nelements * sizeof(half)));
++            }
+         }
+     };
+-    hip_f16_alloc K_f16(main_stream);
+-    hip_f16_alloc V_f16(main_stream);
++    hip_f16_alloc K_f16(main_stream, fa_use_pool ? &pool : nullptr);
++    hip_f16_alloc V_f16(main_stream, fa_use_pool ? &pool : nullptr);
+ #else
+     ggml_cuda_pool_alloc<half>   K_f16(pool);
+     ggml_cuda_pool_alloc<half>   V_f16(pool);
+diff --git a/ggml/src/ggml-cuda/fattn.cu b/ggml/src/ggml-cuda/fattn.cu
+index ffa5a55..648cd8a 100644
+--- a/ggml/src/ggml-cuda/fattn.cu
++++ b/ggml/src/ggml-cuda/fattn.cu
+@@ -538,14 +538,17 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
+     const bool can_use_vector_kernel = Q->ne[0] <= 256 && Q->ne[0] % 64 == 0 && Q->ne[0] != 192 && K->ne[1] % FATTN_KQ_STRIDE == 0;
+ 
+ #ifdef GGML_USE_HIP
+-    // HIP/ROCm: the TILE/MMA/WMMA FA paths allocate unbounded f16 temp buffers
+-    // for quantized KV types (K_f16, V_f16 in launch_fattn). The pool retains
+-    // peak allocation size, so the temp buffer VRAM exceeds KV compression savings.
+-    // This causes quantized KV to OOM before f16 on the same context length.
+-    // Force VEC path which does inline dequant with zero temp buffer overhead.
+-    // Trade-off: prefill is slower (sequential query processing).
++    // HIP/ROCm: the TILE/MMA/WMMA FA paths allocate large f16 temp buffers for
++    // quantized KV types (K_f16, V_f16 in launch_fattn). For SMALL batches (decode)
++    // the VEC kernel is preferred: it does inline dequant with zero temp buffer
++    // overhead, it natively supports the TurboQuant types, and it produces a
++    // HIP-graph-safe op stream (no per-call cudaMalloc/cudaFree during capture).
++    // For LARGE batches (prefill) the VEC kernel is far slower (sequential query
++    // processing), so we deliberately fall through to the TILE/MMA path which is
++    // ~3.4x faster; prefill runs eagerly (not captured) so its f16 temp buffer is
++    // allocated/freed raw in launch_fattn without violating graph-capture rules.
+     // Limitation: head_dim > 256 cannot use VEC (falls through to TILE).
+-    if ((ggml_is_quantized(K->type) || ggml_is_quantized(V->type)) && can_use_vector_kernel) {
++    if ((ggml_is_quantized(K->type) || ggml_is_quantized(V->type)) && can_use_vector_kernel && Q->ne[1] <= 8) {
+         return BEST_FATTN_KERNEL_VEC;
+     }
+ #endif // GGML_USE_HIP

@@ -1,0 +1,4 @@
+# Keep patch files and shell scripts as LF so `git apply` works cross-platform.
+*.patch text eol=lf
+*.sh    text eol=lf
+*.py    text eol=lf

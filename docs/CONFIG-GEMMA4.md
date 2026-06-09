@@ -42,9 +42,9 @@ model:
   provider: "custom:local-llama-cpp"
   base_url: "http://127.0.0.1:8080/v1"
   api_key: "llama.cpp"
-  context_length: 262144
-  batch_size: 8192
-  ubatch_size: 2048
+  context_length: 131072   # 128K for agentic coding; 262144 for full 256K
+  batch_size: 2048         # CRITICAL: large batch spills VRAM at long context
+  ubatch_size: 512
   # TURBOQUANT: Asymmetric K/V for Q4_K_M models
   # q8_0-K preserves attention routing quality
   # turbo4-V compresses value cache 3.8x with +0.23% PPL
@@ -89,16 +89,27 @@ Google's official recommendations for Gemma-4 instruct mode:
 
 ## KV Cache Comparison
 
-| Config | K bits | V bits | Compression | PPL Impact | VRAM @ 128K | Notes |
-|--------|--------|-------|-------------|-----------|-------------|-------|
-| f16/f16 | 16 | 16 | 1.0x | baseline | ~32 GB | Doesn't fit |
-| q4_0/q4_0 | 4 | 4 | 4.0x | +0.52% | ~8 GB | Current baseline |
-| q8_0/turbo4 | 8 | 4.25 | 3.8x (V) | +0.23% | ~10 GB | **Recommended** |
-| q8_0/turbo3 | 8 | 3.5 | 4.6x (V) | NaN | ~9 GB | **Broken on HIP** |
-| turbo4/turbo4 | 4.25 | 4.25 | 3.8x | catastrophic | ~8 GB | **Catastrophic on Q4_K_M** |
-| turbo3/turbo3 | 3.5 | 3.5 | 4.6x | catastrophic | ~7 GB | **Catastrophic on Q4_K_M** |
+Measured on this hardware (gfx1201). "Same-top-p" is the KL-divergence agreement vs the
+f16 baseline at `-c 512`; "Needle" is long-context retrieval at 8K–33K (see docs/QUALITY.md).
+VRAM is the measured dedicated GPU memory at 128K idle with `-b 2048`.
 
-**Key insight**: On Q4_K_M models, K precision is critical because it controls attention routing via softmax. V compression is nearly free. Hence `q8_0-K + turbo4-V` is the optimal config.
+| Config (K/V) | Same-top-p @512 | Needle 8K–33K | VRAM @128K | Notes |
+|--------------|-----------------|---------------|-----------|-------|
+| f16 / f16 | 100% | — | doesn't fit | baseline reference |
+| q8_0 / q8_0 | 87.2% | — | ~21 GB | excellent, larger KV |
+| **q8_0 / turbo4** | **76.5%** | **9/9** | 21.6 GB | **recommended default** |
+| turbo4 / turbo4 | 74.3% | — | 21.6 GB | good; symmetric works here |
+| q8_0 / turbo3 | 47.5% | — | 20.6 GB | drifts @512, fine at long ctx |
+| turbo3 / turbo3 | 41.0% | **9/9** | 20.6 GB | max context/speed; lossless retrieval |
+
+**Key insights:**
+- On Q4_K_M models, K precision protects attention routing via softmax; V compression is
+  nearly free. `q8_0-K + turbo4-V` is the safe high-fidelity default.
+- The low `turbo3` same-top-p @512 is a **regime artifact**: at 512 tokens the context is
+  smaller than Gemma's 1024 SWA window, so the long-context KV path is never exercised. The
+  needle test (9/9) shows `turbo3/turbo3` is lossless for long-context retrieval.
+- `turbo3` and symmetric `turbo4` run fine on gfx1201 — **no NaNs** in any KLD or needle run.
+  Earlier "turbo3 NaN on AMD" reports did not reproduce here.
 
 ## SWA Pattern for Gemma-4
 

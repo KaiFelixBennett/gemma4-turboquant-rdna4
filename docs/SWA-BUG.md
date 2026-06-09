@@ -6,7 +6,15 @@ Gemma-4 uses **hybrid Sliding Window Attention (SWA)**: 5 of every 6 layers use 
 
 **The bug**: On Windows builds compiled with MSVC or Clang, `std::transform((const bool*)data, ...)` in `llama-model-loader.cpp` misreads the SWA pattern boolean array from the GGUF file. Instead of correctly parsing which layers are SWA vs global, **all 60 layers are treated as global**.
 
-**The impact**: At 128K context, decode speed drops from an expected ~40-60 t/s to **1.4 t/s** — a 30-44x degradation.
+**The impact**: this bug forces every layer into O(n²) global attention, inflating compute
+and KV size ~6x and hurting mid-context efficiency. It is fixed in TheTom's fork.
+
+> **Attribution caveat.** Our original baseline measured 1.4 t/s @128K and blamed it entirely
+> on this SWA bug. Later measurements show the 128K decode collapse persists even *with* the
+> SWA fix when a large `-b 16384` batch is used (1.28 t/s) — so the dominant driver of the
+> 128K cliff is the **batch-buffer spill** (see BENCHMARKS.md), while the SWA fix mainly
+> improves correctness and mid-context (16K–64K) efficiency. Both fixes matter; don't conflate
+> them.
 
 ## Technical Details
 

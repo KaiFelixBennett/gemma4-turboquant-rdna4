@@ -7,6 +7,7 @@
 param(
     [string]$RepoDir = "C:\models\llama-cpp-tq",
     [string]$Branch = "feature/turboquant-kv-cache",
+    [string]$Commit = "7d9715f",
     [string]$GPU_TARGET = "gfx1201",
     [string]$HIP_PATH = "C:\Program Files\AMD\ROCm\7.1",
     [switch]$SkipClone,
@@ -69,10 +70,13 @@ if (-not $SkipClone) {
         Write-Host "  Repo already exists at $RepoDir" -ForegroundColor Green
         Push-Location $RepoDir
         git fetch origin
-        git checkout $Branch
+        git checkout $Commit
         Pop-Location
     } else {
         git clone --branch $Branch https://github.com/TheTom/llama-cpp-turboquant.git $RepoDir
+        Push-Location $RepoDir
+        git checkout $Commit
+        Pop-Location
     }
 } else {
     Write-Host "[2/6] Skipping clone (requested)" -ForegroundColor Yellow
@@ -114,6 +118,7 @@ Push-Location $RepoDir
 cmake -S . -B build -G Ninja `
     -DGPU_TARGETS=$GPU_TARGET `
     -DGGML_HIP=ON `
+    -DGGML_HIP_GRAPHS=ON `
     -DGGML_CUDA_FA_ALL_QUANTS=ON `
     -DCMAKE_C_COMPILER=clang `
     -DCMAKE_CXX_COMPILER=clang++ `
@@ -172,7 +177,7 @@ Write-Host "  llama-server.exe \" -ForegroundColor White
 Write-Host "    -m <path-to-model>\ " -ForegroundColor White
 Write-Host "    --cache-type-k q8_0 \" -ForegroundColor White
 Write-Host "    --cache-type-v turbo4 \" -ForegroundColor White
-Write-Host "    -ngl 99 -c 262144 -fa on --jinja" -ForegroundColor White
+Write-Host "    -ngl 99 -c 131072 -b 2048 -ub 512 -fa on --jinja" -ForegroundColor White
 Write-Host ""
-Write-Host "  IMPORTANT: Use q8_0-K + turbo4-V for Q4_K_M models!" -ForegroundColor Yellow
-Write-Host "  Symmetric turbo (turbo4/turbo4) is CATASTROPHIC on Q4_K_M!" -ForegroundColor Red
+Write-Host "  Recommended: q8_0-K + turbo4-V for highest fidelity (needle 9/9)." -ForegroundColor Yellow
+Write-Host "  turbo3/turbo3 also works on gfx1201 (no NaN) for max context + speed." -ForegroundColor Yellow

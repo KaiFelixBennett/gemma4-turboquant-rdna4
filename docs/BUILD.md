@@ -154,8 +154,8 @@ build\bin\llama-server.exe `
     -m E:\Coding\custom-rag\data\models\gemma-4-31b-it\gemma-4-31B-it-Q4_K_M.gguf `
     --alias "Gemma-4-31B-it GGUF" `
     --host 127.0.0.1 --port 8080 `
-    --ctx-size 262144 `
-    --batch-size 8192 --ubatch-size 2048 `
+    --ctx-size 131072 `
+    --batch-size 2048 --ubatch-size 512 `
     --flash-attn on `
     --cache-type-k q8_0 `
     --cache-type-v turbo4 `
@@ -170,7 +170,9 @@ build\bin\llama-server.exe `
 The build didn't include TurboQuant. Verify `GGML_HIP=ON` and that `ggml-turbo-quant.c` is in the build.
 
 ### NaN outputs with turbo3 on Q4_K_M
-This is a **known issue on AMD HIP**. Use `q8_0-K + turbo4-V` instead. Symmetric turbo3/turbo3 produces NaN on Q4_K_M models on HIP.
+Earlier community reports claimed this; it **did not reproduce on gfx1201 (RDNA4)** —
+`turbo3/turbo3` ran cleanly across all our KLD and needle tests (needle 9/9). If you do see
+NaNs on a different AMD architecture, fall back to `q8_0-K + turbo4-V`.
 
 ### Build fails with "functional:1259:16: error"
 You're using VS 2019. **Must use VS 2022.**

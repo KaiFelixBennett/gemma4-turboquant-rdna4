@@ -241,20 +241,27 @@ set HIP_PATH=C:\Program Files\AMD\ROCm\7.1
 ### 9. RDNA 4 (gfx1201) Target — It Works!
 HIP SDK 7.1 (clang 21) includes gfx1201 support natively. No `HSA_OVERRIDE_GFX_VERSION` needed.
 
-### 10. turbo3 Produces NaN on AMD HIP with Q4_K_M
-This is a **known issue**. Use `q8_0-K + turbo4-V` instead. Symmetric turbo3/turbo3 produces NaN on Q4_K_M models on HIP.
+### 10. turbo3 / symmetric turbo4 on gfx1201 — both work here
+Earlier community reports claimed `turbo3` produces NaN on AMD HIP and that symmetric
+`turbo4/turbo4` is catastrophic on Q4_K_M. **Neither reproduced on this gfx1201 (RDNA4)
+card.** In our measurements:
+- `turbo3/turbo3` produced no NaNs across all KLD and needle runs and scored **9/9** on the
+  long-context needle test (lossless retrieval).
+- symmetric `turbo4/turbo4` scored KLD same-top-p 74.3% (vs 76.5% for `q8_0/turbo4`) — close,
+  not catastrophic.
 
-### 11. Symmetric turbo4/turbo4 is CATASTROPHIC on Q4_K_M
-Do NOT use `--cache-type-k turbo4 --cache-type-v turbo4` with Q4_K_M models. The K-side quantization destroys attention routing quality. Always use `q8_0-K + turbo4-V` for Q4_K_M.
+The safe high-fidelity default is still **`q8_0-K + turbo4-V`** (it protects attention
+routing via 8-bit keys), but `turbo3/turbo3` is a valid choice for maximum context + speed.
+See docs/QUALITY.md for the full study.
 
 ## Recommended Configuration for Gemma-4-31B-it Q4_K_M
 
 ```yaml
-cache_type_k: "q8_0"    # 8-bit keys preserve attention routing (softmax is sensitive to K errors)
-cache_type_v: "turbo4"  # 4.25-bit values, 3.8x compression, +0.23% PPL
-context_length: 262144  # Full 256K native context
-batch_size: 8192
-ubatch_size: 2048
+cache_type_k: "q8_0"    # 8-bit keys preserve attention routing (softmax is K-sensitive)
+cache_type_v: "turbo4"  # highest-fidelity TurboQuant level (needle 9/9)
+context_length: 131072  # 128K for agentic coding; 262144 for full 256K
+batch_size: 2048        # CRITICAL: large batch spills VRAM at long context
+ubatch_size: 512
 flash_attn: true
 parallel_slots: 1
 ```

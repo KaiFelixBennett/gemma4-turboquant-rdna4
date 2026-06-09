@@ -21,9 +21,9 @@ llama_model_load: cache_type_v = turbo4
 llama_model_load: model =       17872.02 MiB / 32624.00 MiB
 llama_model_load: cache_type_k = q8_0
 llama_model_load: cache_type_v = turbo4
-llama_model_load: n_ctx = 262144 (262144)
-llama_model_load: n_batch = 8192
-llama_model_load: n_ubatch = 2048
+llama_model_load: n_ctx = 131072 (131072)
+llama_model_load: n_batch = 2048
+llama_model_load: n_ubatch = 512
 llama_model_load: flash_attn = 1
 llama_model_load: n_gpu_layers = 99
 ggml_cuda_init: found 1 CUDA devices:

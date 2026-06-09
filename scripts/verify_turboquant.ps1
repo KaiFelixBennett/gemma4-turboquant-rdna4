@@ -32,24 +32,24 @@ if (Test-Path $configPath) {
     Write-Host "  cache_type_k:  $cacheTypeK" -ForegroundColor White
     Write-Host "  cache_type_v:  $cacheTypeV" -ForegroundColor White
     
-    if ($binaryDir -eq "bTurboQuant-gfx1201-turbo4") {
-        Write-Host "  ✅ Binary directory is TheTom fork (turbo4)" -ForegroundColor Green
+    if ($binaryDir -like "bTurboQuant-gfx1201-turbo4*") {
+        Write-Host "  OK  Binary directory is TheTom fork (turbo4, HIP graphs)" -ForegroundColor Green
     } elseif ($binaryDir -eq "bTurboQuant-gfx1201") {
-        Write-Host "  ⚠️  Binary directory is jagsan-cyber (NO turbo4, broken SWA)" -ForegroundColor Red
-        Write-Host "     Update hermes_config.gemma.yaml:" -ForegroundColor Yellow
-        Write-Host "       binary_dir: `"bTurboQuant-gfx1201-turbo4`"" -ForegroundColor Yellow
+        Write-Host "  !!  Binary directory is jagsan-cyber (NO turbo4, broken SWA)" -ForegroundColor Red
+        Write-Host "     Update your config:" -ForegroundColor Yellow
+        Write-Host "       binary_dir: `"bTurboQuant-gfx1201-turbo4-graphs`"" -ForegroundColor Yellow
         Write-Host "       cache_type_k: `"q8_0`"" -ForegroundColor Yellow
         Write-Host "       cache_type_v: `"turbo4`"" -ForegroundColor Yellow
     } else {
-        Write-Host "  ❓ Unknown binary directory: $binaryDir" -ForegroundColor Yellow
+        Write-Host "  ?   Unknown binary directory: $binaryDir" -ForegroundColor Yellow
     }
     
-    if ($cacheTypeV -eq "turbo4") {
-        Write-Host "  ✅ cache_type_v is turbo4" -ForegroundColor Green
+    if ($cacheTypeV -eq "turbo4" -or $cacheTypeV -eq "turbo3") {
+        Write-Host "  OK  cache_type_v is $cacheTypeV (TurboQuant)" -ForegroundColor Green
     } elseif ($cacheTypeV -eq "q4_0") {
-        Write-Host "  ⚠️  cache_type_v is q4_0 (NOT TurboQuant)" -ForegroundColor Red
+        Write-Host "  !!  cache_type_v is q4_0 (NOT TurboQuant)" -ForegroundColor Red
     } else {
-        Write-Host "  ❓ Unknown cache_type_v: $cacheTypeV" -ForegroundColor Yellow
+        Write-Host "  ?   Unknown cache_type_v: $cacheTypeV" -ForegroundColor Yellow
     }
 } else {
     Write-Host "  ⚠️  Config not found: $configPath" -ForegroundColor Red

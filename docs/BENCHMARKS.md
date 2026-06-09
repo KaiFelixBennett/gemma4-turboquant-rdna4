@@ -1,103 +1,133 @@
 # Benchmark Results
 
-All results are for **Gemma-4-31B-it Q4_K_M** (17.46 GiB) on **AMD Radeon AI PRO R9700** (gfx1201, RDNA4, 32GB VRAM).
+All results are for **Gemma-4-31B-it Q4_K_M** (17.05 GiB, 30.7 B params) on an
+**AMD Radeon AI PRO R9700** (gfx1201, RDNA4, 32 GB VRAM). Every number below was measured on
+this hardware; nothing is extrapolated.
 
 ## Hardware & Software
 
 | Component | Specification |
 |-----------|--------------|
-| GPU | AMD Radeon AI PRO R9700 (gfx1201, RDNA4, 32GB VRAM) |
-| CPU | AMD Ryzen 9 |
-| RAM | 64 GB DDR5 |
+| GPU | AMD Radeon AI PRO R9700 (gfx1201, RDNA4, 32,624 MiB) |
+| CPU | Intel Core Ultra 7 265KF (20 threads) |
 | OS | Windows 11 |
-| HIP SDK | 7.1.51803 (Clang 21.0.0) |
-| Build (Phase 1) | jagsan-cyber/turboquant-rocm-llamacpp (commit 5cf8d492c) |
-| Build (Phase 2) | TheTom/llama-cpp-turboquant (feature/turboquant-kv-cache, commit 7d9715f) |
+| HIP SDK | 7.1, Clang 21 |
+| Build | TheTom/llama-cpp-turboquant `7d9715f` + patches in `patches/` (HIP graphs ON) |
 | Flash Attention | ON |
-| Batch Size | 8192 / ubatch 2048 |
 
-## Phase 1: Baseline (Broken SWA, q4_0/q4_0)
+---
 
-KV Cache: q4_0/q4_0 (symmetric)
-SWA: **BROKEN** — all layers treated as global attention
+## 1. Throughput: turbo4 KV + HIP graphs
 
-| Context | Prompt Tokens | Prefill t/s | Decode t/s | Total Time |
-|---------|--------------|-------------|-----------|------------|
-| 16K | 14,320 | 545.5 | 20.4 | 38.1s |
-| 32K | 28,883 | 765.2 | 16.4 | 52.8s |
-| 64K | 58,011 | 481.0 | 3.7 | 177.0s |
-| 128K | 116,264 | 289.8 | **1.4** | 588.5s |
+`llama-bench`, build `bTurboQuant-gfx1201-turbo4-graphs` (HIP_GRAPHS=ON), turbo4/turbo4:
 
-**Key finding**: Decode speed collapses from 20.4 t/s at 16K to **1.4 t/s at 128K** — a 14.6x degradation caused by the SWA bug.
+| Test | Prefill | Decode | Note |
+|------|---------|--------|------|
+| `pp2048 / tg128` | **735.7 t/s** | **22.9 t/s** | turbo4 KV + HIP graphs, no crash, exit 0 |
+| interactive CLI | 522.7 t/s | 24.1 t/s | coherent output, no crash |
 
-### Streaming API Benchmark (Broken SWA)
+This beats both the non-turbo jagsan baseline (641 t/s prefill, no turbo4) and the
+no-graphs turbo4 fallback (188 t/s prefill) — see [HIP-GRAPH-FIX.md](HIP-GRAPH-FIX.md).
 
-Using the API-based streaming test with temperature=1.0, top_p=0.95:
+---
 
-| Context | Rep | TTFT (s) | TPS | Tokens | Gen Time (s) | Total (s) |
-|---------|-----|-----------|-----|--------|--------------|-----------|
-| 16K | 1 | 101.1 | 1.6 | 122 | 75.0 | 176.6 |
-| 16K | 2 | 0.7 | 1.7 | 125 | 73.5 | 75.1 |
-| 16K | 3 | 1.0 | 2.0 | 125 | 63.6 | 64.9 |
-| 32K | 1 | 74.9 | 2.1 | 124 | 59.8 | 135.2 |
-| 32K | 2 | 0.8 | 2.1 | 124 | 59.7 | 60.9 |
-| 32K | 3 | 0.8 | 1.6 | 124 | 79.8 | 81.3 |
-| 64K | 1 | 261.3 | 0.9 | 113 | 124.8 | 386.9 |
-| 64K | 2 | 1.3 | 1.1 | 118 | 106.7 | 108.8 |
-| 64K | 3 | 1.3 | 1.0 | 118 | 114.2 | 116.3 |
-| 128K | 1 | — | — | 0 | — | timed out |
-| 128K | 2 | 56.4 | 0.9 | 117 | 128.4 | 185.7 |
-| 128K | 3 | 1.7 | 1.0 | 116 | 111.6 | 114.2 |
+## 2. Context sweep (turbo4/turbo4, `-b 16384`)
 
-Note: First request at each context level has high TTFT due to KV cache warming.
+`llama-bench`, prefill = `-p N -n 0`, decode = `-d N -p 0 -n 128`:
 
-## Phase 2: After Fix (TheTom fork, q8_0-K + turbo4-V)
+| Context | Prefill (t/s) | Decode (t/s) |
+|---------|---------------|--------------|
+| 2K | 810.85 ± 2.13 | 21.24 ± 0.28 |
+| 4K | 712.56 ± 1.32 | 21.78 ± 1.48 |
+| 8K | 652.32 ± 1.32 | 19.99 ± 0.52 |
+| 16K | 566.04 ± 0.81 | 19.09 ± 0.90 |
+| 32K | 461.42 ± 1.11 | 16.18 ± 0.76 |
+| 64K | 335.58 ± 0.75 | 13.82 ± 1.12 |
+| 128K | 207.74 ± 1.10 | **⚠️ 1.28 ± 0.00** |
 
-KV Cache: q8_0-K + turbo4-V (asymmetric)
-SWA: **FIXED** — correct boolean array parsing for hybrid attention
+The 128K decode collapse looked like a VRAM wall — but it is a **batch-buffer artifact**, see below.
 
-### Quick Test (4K context)
+---
 
-| Metric | Value |
-|--------|-------|
-| Prefill | 423.2 t/s |
-| Context | 4096 tokens |
-| Cache | q8_0-K + turbo4-V |
-| GPU | AMD Radeon AI PRO R9700 (gfx1201) |
+## 3. The batch-buffer fix (the key result)
 
-### Full Benchmark (llama-bench)
+### VRAM at 128K, idle (load-only measurement)
 
-*Benchmark in progress — results will be added when complete*
+| Config | Batch | Dedicated VRAM | Spill (shared) |
+|--------|-------|----------------|----------------|
+| turbo3/turbo3 | 2048 | 20.61 GB | 0.30 GB |
+| turbo4/turbo4 | 2048 | 21.56 GB | 0.30 GB |
+| turbo4/turbo4 | **16384** | **23.40 GB** | **1.15 GB ⚠️** |
 
-Expected improvement over baseline:
-- Decode at 128K: from **1.4 t/s** → **8-15 t/s** (6-11x improvement)
-- Decode at 64K: from **3.7 t/s** → **12-18 t/s** (3-5x improvement)
-- VRAM savings from turbo4-V compression: ~3.8x on V cache
+The `-b 16384` Flash-Attention scratch buffer adds ~1.8 GB and spills turbo4 over the 32 GB
+edge while idle. The KV difference between turbo3 and turbo4 is only ~1 GB.
 
-## Comparison: RTX 5090 with TurboQuant
+### Decode @ 128K — batch is the lever
 
-| Context | RTX 5090 Prefill | RTX 5090 Decode | R9700 Baseline | R9700 Expected |
-|---------|-----------------|-----------------|----------------|----------------|
-| 128K | 1,429 t/s | **61.5 t/s** | 290 t/s / 1.4 t/s | ~290 t/s / 8-15 t/s |
-| 256K | 900 t/s | ~61 t/s | — | — |
+| Config | Batch | Decode t/s | |
+|--------|-------|-----------|---|
+| turbo4/turbo4 | 16384 | 1.28 | ❌ spill |
+| q8_0/turbo4 | 16384 | 1.16 | ❌ spill |
+| **turbo4/turbo4** | **2048** | **6.63** | ✅ **+5.2x — pure batch fix** |
+| turbo3/turbo3 | 16384 | 9.75 | faster (smaller KV), see QUALITY.md |
 
-The 44x decode gap at 128K in the baseline is **not** a hardware difference — it's the SWA bug.
+**Dropping `-b 16384` → `-b 2048` alone recovers 5.2x decode at 128K with no quality change.**
+
+---
+
+## 4. Loading the full 256K context
+
+turbo3/turbo3, `-b 2048 -ub 512`, load-only:
+
+| Context | Status | Dedicated VRAM | Spill | Free (of 32 GB) |
+|---------|--------|----------------|-------|-----------------|
+| 128K | ✅ | 20.61 GB | 0.30 GB | ~11 GB |
+| 160K | ✅ | 21.13 GB | 0.36 GB | ~11 GB |
+| 192K | ✅ | 21.71 GB | 0.43 GB | ~10 GB |
+| 224K | ✅ | 22.29 GB | 0.49 GB | ~10 GB |
+| **256K** | ✅ | **22.88 GB** | 0.55 GB | **~9 GB** |
+
+KV grows only ~0.58 GB per 32K — Gemma's SWA caps 5 of every 6 layers at a 1024-token window.
+
+---
+
+## 5. Quality
+
+See [QUALITY.md](QUALITY.md) for the full KL-divergence and needle-in-a-haystack study.
+Summary: `q8_0/turbo4` needle 9/9 (recommended), `turbo3/turbo3` needle 9/9 (max context).
+
+---
+
+## Historical baseline (jagsan-cyber fork, broken SWA, q4_0/q4_0)
+
+This is the *starting point* before TheTom's fork and our patches. It used a different fork
+with a Gemma-4 SWA-pattern parsing bug (see [SWA-BUG.md](SWA-BUG.md)):
+
+| Context | Prefill t/s | Decode t/s | Total |
+|---------|-------------|-----------|-------|
+| 16K | 545.5 | 20.4 | 38.1s |
+| 32K | 765.2 | 16.4 | 52.8s |
+| 64K | 481.0 | 3.7 | 177.0s |
+| 128K | 289.8 | 1.4 | 588.5s |
+
+> **Note on attribution.** The 1.4 t/s @128K here was originally blamed entirely on the SWA
+> bug. Our later measurements show the 128K decode collapse persists even *with* the SWA fix
+> when `-b 16384` is used (1.28 t/s) — so the dominant driver at 128K is the **batch-buffer
+> spill**, not the SWA bug. The SWA fix matters for correctness and mid-context efficiency;
+> the batch flag matters for the 128K cliff.
+
+---
 
 ## Methodology
 
-- **llama-bench**: Direct benchmark tool, temperature=0, deterministic generation
-- **API benchmark**: Hits running llama-server at `127.0.0.1:8080/v1/chat/completions`
-- **Streaming benchmark**: Same as API but with temperature=1.0, top_p=0.95
-- **Context levels**: 16K, 32K, 64K, 128K (256K planned)
-- **Repetitions**: 2 per level (llama-bench), 3 per level (streaming)
+- **llama-bench**: temperature 0, deterministic; prefill `-p N -n 0`, decode `-d N -p 0 -n 128`.
+- **VRAM (load-only)**: start `llama-server`, read `\GPU Process Memory(pid_*)\Dedicated Usage`
+  and `Shared Usage` performance counters ~15 s after load. Fast and avoids full decode runs.
+- **Needle**: `benchmarks/needle_test.py` against a running server (see QUALITY.md).
+- **KLD**: `llama-perplexity --kl-divergence` vs a saved f16 baseline, wikitext-2, `-c 512`.
 
-## Benchmark Scripts
+## Result files
 
-- `benchmarks/api_benchmark.py` — Gemma-4 benchmark (contexts: 2K, 4K, 8K, 16K, 32K, 64K, 128K)
-- `benchmarks/api_benchmark_qwen.py` — Qwen 3.6 27B benchmark (same contexts)
-
-## Result Files
-
-- `results/api_bench_b8192_broken_swa.json` — Baseline (broken SWA, q4_0/q4_0)
-- `results/turboquant_streaming_20260609T075714Z.json` — Streaming test (broken SWA)
-- `results/turbo4_swa_fix_bench.json` — TheTom fork (SWA fix + turbo4) — *coming soon*
+- `results/needle_results.jsonl` — raw needle test records (18, all passed)
+- `results/needle-longcontext.md` — needle methodology + results
+- `results/api_bench_b8192_broken_swa.json` — historical baseline (broken SWA, q4_0/q4_0)
