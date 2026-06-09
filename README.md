@@ -78,6 +78,118 @@ cmake --build build --config Release
 
 ### Gemma-4-31B-it Q4_K_M — Asymmetric K/V
 
+| Parameter | Value | Why |
+|-----------|-------|-----|
+| `cache_type_k` | `q8_0` | 8-bit keys preserve attention routing (softmax is sensitive to K errors) |
+| `cache_type_v` | `turbo4` | 4.25-bit values, 3.8x compression, +0.23% PPL |
+| `context_length` | `262144` | Full 256K native context |
+| `batch_size` | `8192` | Tuned for RDNA4 HIP |
+| `ubatch_size` | `2048` | Tuned for RDNA4 HIP |
+| `flash_attn` | `on` | Required for long context |
+
+**⚠️ DO NOT use these configurations:**
+- `turbo4/turbo4` — K-side turbo4 destroys attention routing on Q4_K_M models (catastrophic PPL)
+- `turbo3/turbo3` — Produces NaN on AMD HIP (known issue)
+- `q4_0/q4_0` — Broken SWA pattern parsing causes 44x decode slowdown at 128K
+
+## Project Structure
+
+```
+gemma4-turboquant-rdna4/
+├── README.md                          # This file
+├── docs/
+│   ├── BUILD.md                       # Original build guide (9 gotchas)
+│   ├── BUILD-WINDOWS-HIP.md           # Complete tested build guide (this build)
+│   ├── BENCHMARKS.md                   # Benchmark results & methodology
+│   ├── SWA-BUG.md                     # SWA bug technical analysis
+│   └── VERIFY-TURBOQUANT.md           # How to verify TurboQuant is active
+├── patches/
+│   ├── 0001-remove-peer-to-peer-memcpy-for-windows-hip.patch
+│   └── 0002-add-cudaEventCreate-mapping-for-hip.patch
+├── scripts/
+│   ├── build_turboquant.ps1           # Automated build script
+│   ├── verify_swa.ps1                 # SWA pattern verification
+│   └── verify_turboquant.ps1          # TurboQuant verification (binary, config, speed)
+├── configs/
+│   ├── hermes_config.gemma.turbo4.yaml  # Hermes config with turbo4
+│   └── start_gemma_turbo4.ps1           # Launch script
+└── benchmarks/
+    ├── api_benchmark.py               # API-based benchmark script
+    ├── api_benchmark_qwen.py          # Qwen benchmark script
+    └── results/
+        ├── api_bench_b8192_broken_swa.json  # Baseline (broken SWA, q4_0/q4_0)
+        ├── turboquant_streaming_20260609T075714Z.json  # Streaming test (broken SWA)
+        └── turboquant_streaming_20260609T075714Z.md
+```
+
+## Quick Start
+
+### 1. Build (see [docs/BUILD-WINDOWS-HIP.md](docs/BUILD-WINDOWS-HIP.md) for full details)
+
+```powershell
+# Clone TheTom's fork
+git clone --branch feature/turboquant-kv-cache https://github.com/TheTom/llama-cpp-turboquant.git
+cd llama-cpp-turboquant
+
+# Apply Windows HIP patches (see patches/ directory)
+# ...
+
+# Build with HIP for gfx1201
+cmake -S . -B build -G Ninja `
+    -DGPU_TARGETS=gfx1201 `
+    -DGGML_HIP=ON `
+    -DGGML_CUDA_FA_ALL_QUANTS=ON `
+    -DCMAKE_C_COMPILER=clang `
+    -DCMAKE_CXX_COMPILER=clang++ `
+    -DCMAKE_BUILD_TYPE=Release
+
+cmake --build build --config Release
+```
+
+### 2. Deploy
+
+```powershell
+# Copy binaries to hermes project
+Copy-Item build\bin\*.exe C:\...\hermes-claude-code-local\tools\llama.cpp\bTurboQuant-gfx1201-turbo4\
+Copy-Item build\bin\*.dll C:\...\hermes-claude-code-local\tools\llama.cpp\bTurboQuant-gfx1201-turbo4\
+```
+
+### 3. Configure
+
+Update `hermes_config.gemma.yaml`:
+```yaml
+model:
+  binary_dir: "bTurboQuant-gfx1201-turbo4"  # TheTom fork
+  cache_type_k: "q8_0"                        # 8-bit keys
+  cache_type_v: "turbo4"                       # 4.25-bit values
+```
+
+### 4. Verify
+
+```powershell
+# Run the verification script
+cd C:\Users\KaiFe\Desktop\gemma4-turboquant-rdna4
+.\scripts\verify_turboquant.ps1
+```
+
+### 5. Run
+
+```powershell
+# Start llama-server with TurboQuant
+cd C:\Users\KaiFe\Desktop\hermes-claude-code-local
+.\start_gemma.bat
+```
+
+## How to Verify TurboQuant is Active
+
+See [docs/VERIFY-TURBOQUANT.md](docs/VERIFY-TURBOQUANT.md) for the full guide. Quick checks:
+
+1. **Startup logs**: Look for `cache_type_k = q8_0` and `cache_type_v = turbo4`
+2. **Binary directory**: Should be `bTurboQuant-gfx1201-turbo4` (not `bTurboQuant-gfx1201`)
+3. **DLL size**: `ggml-hip.dll` should be ~100 MB (includes TurboQuant kernels)
+4. **Decode speed**: At 128K context, should be 8-15 t/s (not 1.4 t/s)
+5. **SWA pattern**: Should show `[0,1,1,1,1,1]` repeating (not all zeros)
+
 Based on TheTom's cross-model validation, **symmetric turbo is catastrophic on Q4_K_M models**. The safe configuration is:
 
 ```bash

@@ -1,0 +1,20 @@
+Titel-Strategie
+Dein Vorschlag ist gut aber ich würde splitten:
+Für r/LocalLLaMA:
+
+"Running Gemma 4 27B with full 128k context on a $1400 AMD GPU — TurboQuant + HIP build for RDNA4 (gfx1201)"
+
+Für r/Amd:
+
+"Your RX 9070 XT can run 128k context LLMs — here's the build guide nobody wrote yet"
+
+Der AMD-Post spricht Käufer an, nicht Entwickler. Die wissen oft nicht dass ihre GPU dafür taugt.
+
+Timing-Tipp
+r/LocalLLaMA hat die höchste Aktivität Dienstag–Donnerstag, 14–20 Uhr UTC. Post nicht am Wochenende.
+
+
+https://claude.ai/chat/cc0a8123-4fe7-4061-a9ad-0821b7f0e7a2 
+
+
+Kurzes Video weniger als 45sekunden ohne Ton dazu! Vielleicht ein GIF? 

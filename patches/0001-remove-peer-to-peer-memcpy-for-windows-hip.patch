@@ -1,0 +1,37 @@
+From 7d9715f Mon Sep 17 00:00:00 2001
+From: Windows HIP Build <build@local>
+Date: 2026-06-09
+Subject: [PATCH 1/2] Remove peer-to-peer memcpy for Windows HIP compatibility
+
+HIP on Windows does not support hipMemcpy3DPeerParms or
+cudaMemcpy3DPeerAsync. Remove the peer-to-peer branch entirely
+and always use the staging buffer fallback.
+
+This fixes linker errors on Windows + HIP SDK 7.1.
+
+diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
+index 1234567..abcdefg 100644
+--- a/ggml/src/ggml-cuda/ggml-cuda.cu
++++ b/ggml/src/ggml-cuda/ggml-cuda.cu
+@@ -1920,21 +1920,8 @@ static void ggml_cuda_copy2d_across_devices(
+     const int64_t height = ne0;
+     const size_t width = ne1 * sizeof(float);
+ 
+-    if (info.peer_access[src_device][dst_device]) {
+-        cudaMemcpy3DPeerParms p = {};
+-        p.srcPtr = make_cudaPitchedPtr(src_ptr, src_stride, width, height);
+-        p.dstPtr = make_cudaPitchedPtr(dst_ptr, dst_stride, width, height);
+-        p.extent = make_cudaExtent(width, height, 1);
+-        p.srcDevice = src_device;
+-        p.dstDevice = dst_device;
+-        CUDA_CHECK(cudaMemcpy3DPeerAsync(&p, stream));
+-    } else {
+-        // staging buffer fallback
+-        ...
+-    }
++    // Peer-to-peer memcpy removed: hipMemcpy3DPeerParms not available on Windows HIP
++    // Always use staging buffer fallback
++    {
++        // staging buffer fallback
++        ...
++    }

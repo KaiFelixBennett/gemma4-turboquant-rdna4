@@ -1,0 +1,19 @@
+From 7d9715f Mon Sep 17 00:00:00 2001
+From: Windows HIP Build <build@local>
+Date: 2026-06-09
+Subject: [PATCH 2/2] Add cudaEventCreate mapping for HIP compatibility
+
+HIP on Windows does not define cudaEventCreate as a macro.
+Add the mapping to hip.h so that llama-server can create
+GPU events for timing and synchronization.
+
+diff --git a/ggml/src/ggml-cuda/vendors/hip.h b/ggml/src/ggml-cuda/vendors/hip.h
+index 1234567..abcdefg 100644
+--- a/ggml/src/ggml-cuda/vendors/hip.h
++++ b/ggml/src/ggml-cuda/vendors/hip.h
+@@ -XX,6 +XX,7 @@
+ #define cudaFuncAttributeMaxDynamicSharedMemorySizeBytes hipFuncAttributeMaxDynamicSharedMemorySizeBytes
++#define cudaEventCreate hipEventCreate
+ 
+ // Additional Windows HIP compatibility
+ // min/max not defined in device scope on Windows

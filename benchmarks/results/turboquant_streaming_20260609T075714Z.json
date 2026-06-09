@@ -1,0 +1,175 @@
+[
+  {
+    "ctx": 16384,
+    "rep": 1,
+    "success": true,
+    "ttft": 101.068,
+    "tps": 1.6,
+    "tokens": 122,
+    "gen_time": 74.963,
+    "total_time": 176.596
+  },
+  {
+    "ctx": 16384,
+    "rep": 2,
+    "success": true,
+    "ttft": 0.738,
+    "tps": 1.7,
+    "tokens": 125,
+    "gen_time": 73.546,
+    "total_time": 75.095
+  },
+  {
+    "ctx": 16384,
+    "rep": 3,
+    "success": true,
+    "ttft": 0.971,
+    "tps": 2.0,
+    "tokens": 125,
+    "gen_time": 63.61,
+    "total_time": 64.948
+  },
+  {
+    "ctx": 32768,
+    "rep": 1,
+    "success": true,
+    "ttft": 74.933,
+    "tps": 2.1,
+    "tokens": 124,
+    "gen_time": 59.787,
+    "total_time": 135.204
+  },
+  {
+    "ctx": 32768,
+    "rep": 2,
+    "success": true,
+    "ttft": 0.777,
+    "tps": 2.1,
+    "tokens": 124,
+    "gen_time": 59.681,
+    "total_time": 60.943
+  },
+  {
+    "ctx": 32768,
+    "rep": 3,
+    "success": true,
+    "ttft": 0.758,
+    "tps": 1.6,
+    "tokens": 124,
+    "gen_time": 79.832,
+    "total_time": 81.316
+  },
+  {
+    "ctx": 65536,
+    "rep": 1,
+    "success": true,
+    "ttft": 261.319,
+    "tps": 0.9,
+    "tokens": 113,
+    "gen_time": 124.77,
+    "total_time": 386.929
+  },
+  {
+    "ctx": 65536,
+    "rep": 2,
+    "success": true,
+    "ttft": 1.293,
+    "tps": 1.1,
+    "tokens": 118,
+    "gen_time": 106.666,
+    "total_time": 108.806
+  },
+  {
+    "ctx": 65536,
+    "rep": 3,
+    "success": true,
+    "ttft": 1.284,
+    "tps": 1.0,
+    "tokens": 118,
+    "gen_time": 114.203,
+    "total_time": 116.336
+  },
+  {
+    "ctx": 131072,
+    "rep": 1,
+    "success": false,
+    "ttft": null,
+    "tps": null,
+    "tokens": 0,
+    "error": "timed out"
+  },
+  {
+    "ctx": 131072,
+    "rep": 2,
+    "success": true,
+    "ttft": 56.424,
+    "tps": 0.9,
+    "tokens": 117,
+    "gen_time": 128.361,
+    "total_time": 185.742
+  },
+  {
+    "ctx": 131072,
+    "rep": 3,
+    "success": true,
+    "ttft": 1.673,
+    "tps": 1.0,
+    "tokens": 116,
+    "gen_time": 111.552,
+    "total_time": 114.175
+  },
+  {
+    "ctx": 196608,
+    "rep": 1,
+    "success": false,
+    "ttft": null,
+    "tps": null,
+    "tokens": 0,
+    "error": "timed out"
+  },
+  {
+    "ctx": 196608,
+    "rep": 2,
+    "success": false,
+    "ttft": null,
+    "tps": null,
+    "tokens": 0,
+    "error": "[WinError 10054] Eine vorhandene Verbindung wurde vom Remotehost geschlossen"
+  },
+  {
+    "ctx": 196608,
+    "rep": 3,
+    "success": false,
+    "ttft": null,
+    "tps": null,
+    "tokens": 0,
+    "error": "[WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte"
+  },
+  {
+    "ctx": 262144,
+    "rep": 1,
+    "success": false,
+    "ttft": null,
+    "tps": null,
+    "tokens": 0,
+    "error": "[WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte"
+  },
+  {
+    "ctx": 262144,
+    "rep": 2,
+    "success": false,
+    "ttft": null,
+    "tps": null,
+    "tokens": 0,
+    "error": "[WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte"
+  },
+  {
+    "ctx": 262144,
+    "rep": 3,
+    "success": false,
+    "ttft": null,
+    "tps": null,
+    "tokens": 0,
+    "error": "[WinError 10061] Es konnte keine Verbindung hergestellt werden, da der Zielcomputer die Verbindung verweigerte"
+  }
+]
