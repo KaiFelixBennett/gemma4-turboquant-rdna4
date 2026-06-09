@@ -1,0 +1,74 @@
+# Hermes Agent CLI Configuration - Gemma-4-31B with TurboQuant
+# WSL2 with mirrored networking -> localhost == Windows localhost
+#
+# KEY CHANGE: cache_type_v changed from q4_0 to turbo4
+# This requires TheTom/llama-cpp-turboquant fork with TurboQuant support
+#
+# Asymmetric K/V: q8_0-K + turbo4-V
+# - K at q8_0 preserves attention routing quality (softmax is sensitive to K errors)
+# - V at turbo4 compresses 3.8x with only +0.23% PPL impact
+# - Symmetric turbo (turbo4/turbo4) is CATASTROPHIC on Q4_K_M models!
+# - turbo3 produces NaN on AMD HIP (known issue)
+
+providers:
+  local-llama-cpp:
+    name: "llama.cpp"
+    base_url: "http://127.0.0.1:8080/v1"
+    api_key: "llama.cpp"
+    api_mode: "chat_completions"
+    default_model: "Gemma-4-31B-it GGUF"
+    model: "Gemma-4-31B-it GGUF"
+    models:
+      - "Gemma-4-31B-it GGUF"
+
+model:
+  path: 'E:\Coding\custom-rag\data\models\gemma-4-31b-it\gemma-4-31B-it-Q4_K_M.gguf'
+  default: "Gemma-4-31B-it GGUF"
+  # Gemma-4 has the chat template embedded in the GGUF; leave empty.
+  chat_template: ''
+  backend: "hip"
+  # TheTom/llama-cpp-turboquant fork with TurboQuant + SWA fix
+  # Build from: https://github.com/TheTom/llama-cpp-turboquant (feature/turboquant-kv-cache)
+  # See docs/BUILD.md for Windows HIP build instructions
+  binary_dir: "bTurboQuant-gfx1201"
+  provider: "custom:local-llama-cpp"
+  base_url: "http://127.0.0.1:8080/v1"
+  api_key: "llama.cpp"
+  # 256K context — Gemma-4's full native context length
+  # With q8_0-K + turbo4-V, fits in 32GB VRAM with headroom
+  context_length: 262144
+  # Batch sizes tuned for TurboQuant ROCm/HIP on AMD Radeon AI PRO R9700 (gfx1201)
+  batch_size: 8192
+  ubatch_size: 2048
+  # TURBOQUANT KV CACHE — Asymmetric config for Q4_K_M models
+  # q8_0-K: 8-bit keys preserve attention routing (softmax quality)
+  # turbo4-V: 4.25-bit values, 3.8x compression, +0.23% PPL
+  # DO NOT use symmetric turbo4/turbo4 on Q4_K_M — catastrophic PPL!
+  # DO NOT use turbo3 on AMD HIP — produces NaN!
+  cache_type_k: "q8_0"
+  cache_type_v: "turbo4"
+  # Single slot for maximum context — Flash Attention on
+  parallel_slots: 1
+  flash_attn: true
+  # Sampling tuned per Google Gemma-4 best practices
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 64
+  min_p: 0.0
+  presence_penalty: 0.0
+  repeat_penalty: 1.0
+  # Gemma-4 has native thinking channel (<|channel|>thought) for CoT reasoning
+  reasoning: on
+  reasoning_budget: 2048
+  # Gemma-4 does NOT support MTP (Multi-Token Prediction)
+  speculative_type: "none"
+  speculative_draft_tokens: ""
+
+tools:
+  enabled:
+    - bash
+    - read_file
+    - write_file
+    - edit_file
+    - web_search
+    - browser

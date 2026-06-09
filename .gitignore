@@ -1,0 +1,34 @@
+# Build artifacts
+build/
+*.exe
+*.dll
+*.lib
+*.obj
+*.o
+*.a
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (too large for git)
+*.gguf
+*.bin
+
+# Logs
+logs/
+*.log
+
+# Lock files
+*.lock
