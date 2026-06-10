@@ -21,9 +21,10 @@
 1. **A fix (new).** A small HIP-graph-safe Flash-Attention patch makes TurboQuant's quantized
    KV cache coexist with HIP graphs on RDNA4 — fast TILE prefill (**735 tok/s**) *and* crash-free
    VEC decode. Out of the box, turbo KV + `GGML_HIP_GRAPHS=ON` crashes on the first decode step.
-2. **A measured study.** The full **256K** context *loads and runs* on a 32 GB card, and two
-   llama.cpp defaults (`-b 16384`, `--parallel 4`) silently cost **~5× decode**. (256K *loading*
-   itself is a turbo3 + Gemma-SWA + small-batch result — **not** caused by the patch.)
+2. **A measured study.** The full **256K** context *loads and runs* on a 32 GB card, and three
+   llama.cpp/llama-server defaults (`-b 16384`, `--parallel 4`, and the server's session-state
+   defaults) silently cost **5–10× decode**. (256K *loading* itself is a turbo3 + Gemma-SWA +
+   small-batch result — **not** caused by the patch.)
 
 Everything here was measured on real hardware; nothing is extrapolated.
 
@@ -48,10 +49,11 @@ Everything here was measured on real hardware; nothing is extrapolated.
 |-----------|----------------------|
 | **AMD RDNA4** (R9700, RX 9070 / 9070 XT, gfx1201) on Windows + ROCm | ✅ **Directly** — tested config + one-command build |
 | Other AMD ROCm GPU (RDNA3, gfx110x) | ⚠️ Patches likely apply; build flags differ (untested here) |
-| NVIDIA / CUDA | ⚙️ The HIP patch isn't for you, but the **two config-trap findings below apply to any GPU** |
-| **Any llama.cpp long-context user** | ✅ The `-b 16384` and `--parallel 4` defaults can quietly cost you **~5× decode** — see [docs/BENCHMARKS.md](docs/BENCHMARKS.md) |
+| NVIDIA / CUDA | ⚙️ The HIP patch isn't for you, but the **three config-trap findings below apply to any GPU** |
+| **Any llama.cpp long-context user** | ✅ Three defaults (`-b 16384`, `--parallel 4`, server session state) can quietly cost you **5–10× decode** — see [docs/BENCHMARKS.md](docs/BENCHMARKS.md) |
+| **VS Code Copilot user** | ✅ [docs/VSCODE-COPILOT.md](docs/VSCODE-COPILOT.md) wires this into Copilot Chat as a local model — real **176K-token agent session** documented |
 
-Two findings drive the whole story:
+Three findings drive the whole story:
 
 1. **The "VRAM wall at 128K" was a batch-buffer artifact, not a hardware/KV limit.** A
    `-b 16384` Flash-Attention scratch buffer (~1.8 GB) spilled turbo4 over the 32 GB edge.
@@ -61,6 +63,10 @@ Two findings drive the whole story:
    HIP graph capture is enabled (`operation not permitted when stream is capturing`). Two
    small patches (`patches/0001-…`) make Flash-Attention graph-capture-safe on decode while
    keeping the fast TILE kernel for prefill.
+3. **llama-server's session-state defaults are a third silent trap for SWA models.** At 256K,
+   32 context checkpoints (~7.3 GB) plus an 8 GB prompt cache pushed **13.8 GB into shared
+   GPU memory** during a real 176K VS Code session and collapsed decode to 0.85 tok/s.
+   `--ctx-checkpoints 4 --cache-ram 0` recovered ~2.6× — see [docs/VSCODE-COPILOT.md](docs/VSCODE-COPILOT.md).
 
 ---
 
@@ -231,6 +237,10 @@ llama-server \
 python benchmarks\needle_test.py --base-url http://127.0.0.1:8080/v1 --label q8_0-turbo4
 ```
 
+Want it inside your editor? [docs/VSCODE-COPILOT.md](docs/VSCODE-COPILOT.md) plugs the server
+into **VS Code GitHub Copilot Chat** as a local custom model — including a documented real
+176K-token agent session and the server flags that make it survivable.
+
 The single-command [`scripts/setup.ps1`](scripts/setup.ps1) clones
 [`TheTom/llama-cpp-turboquant`](https://github.com/TheTom/llama-cpp-turboquant) at the tested
 commit, applies both patches in `patches/`, and builds for `gfx1201` with HIP graphs.
@@ -258,10 +268,12 @@ gemma4-turboquant-rdna4/
 │   ├── needle_test.py              # Long-context retrieval harness (stdlib only)
 │   ├── api_benchmark.py            # Streaming API benchmark
 │   └── results/                    # All measured JSON + markdown results
+├── assets/                         # Measured-evidence screenshots (256K load, 176K session)
 └── docs/
     ├── BUILD-WINDOWS-HIP.md        # Full tested build guide
     ├── HIP-GRAPH-FIX.md            # Technical deep-dive on the two patches
     ├── BENCHMARKS.md               # Full measured numbers + methodology
+    ├── VSCODE-COPILOT.md           # Local model in VS Code Copilot Chat (176K session)
     ├── QUALITY.md                  # KLD + needle quality study
     ├── CONFIG-GEMMA4.md            # Config reference
     ├── SWA-BUG.md                  # Gemma-4 hybrid-SWA parsing bug (fixed in the fork)

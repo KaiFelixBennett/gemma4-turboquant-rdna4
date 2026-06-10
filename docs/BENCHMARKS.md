@@ -95,6 +95,23 @@ batch-buffer spill:
 > default) swaps KV to CPU RAM at long context — always set `--parallel 1` for single-user
 > long-context inference on a 32 GB card.**
 
+### The third trap: llama-server session-state defaults (SWA models)
+
+Found during a real 176K-token VS Code Copilot session (live-session measurements, not
+llama-bench): decode collapsed progressively from 2.11 t/s (@ ~107K fill) to **0.85 t/s**
+(@ ~187K), with **13.8 GB in shared GPU memory** on top of 29/32 GB dedicated. The culprit
+was llama-server's per-session state, which at 256K ctx with an SWA model is huge by default:
+
+| Server feature | Default | Cost @ 256K (Gemma-4-31B) | Fix |
+|----------------|---------|---------------------------|-----|
+| SWA context checkpoints | 32/slot | 32 × 234 MiB ≈ **7.3 GB** | `--ctx-checkpoints 4` |
+| Prompt cache | 8192 MiB | up to **8 GB** | `--cache-ram 0` |
+
+With both caps, shared-memory spill dropped **13.8 → 1.35 GB** and live decode at ~176K
+recovered ~2.6× (0.85 → ~2.3 t/s). An A/B test of `--no-kv-unified` at the same depth
+*halved* decode (2.26 → 1.24 t/s) — keep `--kv-unified` enabled. Full setup + screenshots:
+[VSCODE-COPILOT.md](VSCODE-COPILOT.md).
+
 ---
 
 ## 4. Loading the full 256K context
