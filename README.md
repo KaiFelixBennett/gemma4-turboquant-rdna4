@@ -22,9 +22,10 @@
    KV cache coexist with HIP graphs on RDNA4 — fast TILE prefill (**735 tok/s**) *and* crash-free
    VEC decode. Out of the box, turbo KV + `GGML_HIP_GRAPHS=ON` crashes on the first decode step.
 2. **A measured study.** The full **256K** context *loads and runs* on a 32 GB card, and three
-   llama.cpp/llama-server defaults (`-b 16384`, `--parallel 4`, and the server's session-state
-   defaults) silently cost **5–10× decode**. (256K *loading* itself is a turbo3 + Gemma-SWA +
-   small-batch result — **not** caused by the patch.)
+   config traps — a tempting oversized batch (`-b 16384` is *not* a default; we walked into it
+   ourselves) plus two genuine llama-server defaults (`--parallel 4`, session-state) — silently
+   cost **5–10× decode**. (256K *loading* itself is a turbo3 + Gemma-SWA + small-batch result —
+   **not** caused by the patch.)
 
 Everything here was measured on real hardware; nothing is extrapolated.
 
@@ -50,7 +51,7 @@ Everything here was measured on real hardware; nothing is extrapolated.
 | **AMD RDNA4** (R9700, RX 9070 / 9070 XT, gfx1201) on Windows + ROCm | ✅ **Directly** — tested config + one-command build |
 | Other AMD ROCm GPU (RDNA3, gfx110x) | ⚠️ Patches likely apply; build flags differ (untested here) |
 | NVIDIA / CUDA | ⚙️ The HIP patch isn't for you, but the **three config-trap findings below apply to any GPU** |
-| **Any llama.cpp long-context user** | ✅ Three defaults (`-b 16384`, `--parallel 4`, server session state) can quietly cost you **5–10× decode** — see [docs/BENCHMARKS.md](docs/BENCHMARKS.md) |
+| **Any llama.cpp long-context user** | ✅ Three config traps (an oversized `-b`, the `--parallel 4` default, server session-state defaults) can quietly cost you **5–10× decode** — see [docs/BENCHMARKS.md](docs/BENCHMARKS.md) |
 | **VS Code Copilot user** | ✅ [docs/VSCODE-COPILOT.md](docs/VSCODE-COPILOT.md) wires this into Copilot Chat as a local model — real **176K-token agent session** documented |
 
 Three findings drive the whole story:
