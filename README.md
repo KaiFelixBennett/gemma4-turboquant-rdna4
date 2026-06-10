@@ -159,6 +159,12 @@ KV grows only ~0.58 GB per 32K of context because 5 of every 6 Gemma layers cap 
 at a 1024-token window. (This matches the [RTX 5090 report](https://www.reddit.com/r/LocalLLaMA/comments/1sbdihw/)
 of Gemma-4-31B @ 256K — we even use slightly less VRAM: 22.9 vs 27.7 GB.)
 
+For scale, we also **measured the unquantized baseline**: f16/f16 at 256K demands **44.1 GB
+of GPU memory** on this 32 GB card (30.9 GB dedicated + 13.2 GB silently swapped to system
+RAM — Task Manager screenshot in [docs/BENCHMARKS.md](docs/BENCHMARKS.md)), and it already
+spills ~2 GB at 128K. The compressed KV cache is the measured difference between "12 GB
+overflow" and "~9 GB to spare".
+
 ---
 
 ## Quality: is the compressed KV actually good?

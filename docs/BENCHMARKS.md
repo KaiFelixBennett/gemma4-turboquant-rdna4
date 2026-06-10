@@ -128,6 +128,27 @@ turbo3/turbo3, `-b 2048 -ub 512`, load-only:
 
 KV grows only ~0.58 GB per 32K — Gemma's SWA caps 5 of every 6 layers at a 1024-token window.
 
+### The f16 baseline — measured, not calculated
+
+What does the *unquantized* KV cache cost at the same context sizes? We loaded it (same
+load-only method, `-b 2048 -ub 512 --parallel 1 -fa on`, no cache-type flags = f16/f16):
+
+| Config | Context | Dedicated (process) | Spill to system RAM | Verdict |
+|--------|---------|--------------------:|--------------------:|---------|
+| f16/f16 | 131072 | 27.41 GB | **2.03 GB** | already spilling while idle |
+| f16/f16 | 262144 | 27.81 GB | **12.24 GB** | ~40 GB demand — far beyond the card |
+| turbo3/turbo3 | 262144 | 22.88 GB | 0.55 GB | ✅ fits, ~9 GB free |
+
+System-wide, Task Manager showed **44.1 GB total GPU memory demand** for f16 at 256K
+(30.9/32.0 GB dedicated + 13.2 GB shared):
+
+<p align="center">
+  <img src="../assets/256k-loaded-f16-f16.png" alt="Task Manager: Gemma-4-31B with f16 KV at 256K context demands 44.1 GB GPU memory on a 32 GB card - 30.9 GB dedicated plus 13.2 GB swapped to system RAM" width="85%">
+  <br>
+  <em>f16/f16 at 256K: 44.1 GB total GPU memory on a 32 GB card — 13.2 GB silently swapped to
+  system RAM. The TurboQuant cache is the measured difference between this and ~9 GB of headroom.</em>
+</p>
+
 > **Decode at 256K was not benchmarked.** The 256K figures above are **load-only** (VRAM
 > after model load). A steady-state 256K decode run requires a full 256K prefill, which we did
 > not capture. The reliable long-context decode reference remains **9.38 ± 0.93 t/s at 128K**

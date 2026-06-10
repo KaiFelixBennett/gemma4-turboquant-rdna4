@@ -54,7 +54,7 @@ VRAM is the measured dedicated GPU memory at 128K idle with `-b 2048`.
 
 | Config (K/V) | Same-top-p @512 | Needle 8K–33K | VRAM @128K | Notes |
 |--------------|-----------------|---------------|-----------|-------|
-| f16 / f16 | 100% | — | ~29–31 GB (calculated, not load-tested) | baseline reference; no practical headroom on a 32 GB card |
+| f16 / f16 | 100% | — | **29.4 GB measured** (27.4 + 2.0 GB already spilled at idle) | baseline reference; over the practical edge of a 32 GB card |
 | q8_0 / q8_0 | 87.2% | — | ~21 GB | excellent, larger KV |
 | **q8_0 / turbo4** | **76.5%** | **9/9** | 21.6 GB | **recommended default** |
 | turbo4 / turbo4 | 74.3% | — | 21.6 GB | good; symmetric works here |
