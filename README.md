@@ -5,11 +5,10 @@
 ![ROCm 7.1](https://img.shields.io/badge/ROCm-7.1-orange)
 ![llama.cpp 7d9715f](https://img.shields.io/badge/llama.cpp-7d9715f-blue)
 
-> Running Google's **Gemma-4-31B-it** dense model with its **full 256K native context loaded**
-> (load-verified, ~22.9 GB of 32 GB) on a single **AMD Radeon AI PRO R9700** (gfx1201, RDNA4) —
-> with a working TurboQuant KV cache, HIP-graph-safe Flash-Attention, and **comfortable decode
-> to 128K at 9.4 tok/s** (turbo3 KV, llama-bench). Steady-state decode at the full 256K is not
-> benchmarked; everything here was measured on real hardware, nothing extrapolated.
+> The first working setup that runs **Gemma-4-31B-it with a TurboQuant KV cache *and* HIP graphs
+> together on AMD RDNA4** (gfx1201) — **735 tok/s prefill, crash-free decode**, and the model's
+> **full 256K native context loaded** on a single **$1,400 Radeon AI PRO R9700** (32 GB) with
+> ~9 GB to spare. Every number here was measured on real hardware; nothing is extrapolated.
 
 <p align="center">
   <img src="assets/256k-loaded.png" alt="Gemma-4-31B-it loaded at full 256K context (n_ctx=262144) on an AMD Radeon AI PRO R9700, 25.1 of 32 GB dedicated VRAM, model loaded and responding" width="100%">
@@ -17,10 +16,16 @@
   <em>Gemma-4-31B-it at its full <strong>256K context</strong> (<code>n_ctx = 262144</code>) on a single AMD Radeon AI PRO R9700 — model loaded and responding, ~25&nbsp;GB of 32&nbsp;GB dedicated VRAM in use. (turbo3/turbo3 load-only is lighter at ~22.9&nbsp;GB; see <a href="docs/BENCHMARKS.md">BENCHMARKS.md</a>.)</em>
 </p>
 
-This repository documents a reproducible build and two surgical source patches that make
-TurboQuant's quantized KV cache coexist with **HIP graphs** on AMD RDNA4 — plus an honest,
-fully measured quality and performance study. Everything here was measured on real
-hardware; nothing is extrapolated.
+**Two things, kept separate and honest:**
+
+1. **A fix (new).** A small HIP-graph-safe Flash-Attention patch makes TurboQuant's quantized
+   KV cache coexist with HIP graphs on RDNA4 — fast TILE prefill (**735 tok/s**) *and* crash-free
+   VEC decode. Out of the box, turbo KV + `GGML_HIP_GRAPHS=ON` crashes on the first decode step.
+2. **A measured study.** The full **256K** context *loads and runs* on a 32 GB card, and two
+   llama.cpp defaults (`-b 16384`, `--parallel 4`) silently cost **~5× decode**. (256K *loading*
+   itself is a turbo3 + Gemma-SWA + small-batch result — **not** caused by the patch.)
+
+Everything here was measured on real hardware; nothing is extrapolated.
 
 ---
 
@@ -31,9 +36,8 @@ hardware; nothing is extrapolated.
 | **Model** | Gemma-4-31B-it Q4_K_M (17.05 GiB, 30.7 B params, hybrid SWA) |
 | **GPU** | AMD Radeon AI PRO R9700 (gfx1201, RDNA4, 32 GB) — a ~$1,400 card |
 | **Max context loaded** | **256K** (full native), ~22.9 GB VRAM, ~9 GB free |
-| **Decode @ 128K (turbo4)** | **6.63 tok/s** with `turbo4` + `-b 2048` (was 1.28 with `-b 16384`) |
-| **Decode @ 128K (turbo3)** | **9.38 ± 0.93 tok/s** with `turbo3` + `-b 2048` (llama-bench, 131072 tokens) |
-| **Prefill (pp2048)** | **735 tok/s**, turbo4 KV + HIP graphs, no decode crash |
+| **Prefill (pp2048)** | **735 tok/s** — turbo4 KV + HIP graphs, no crash |
+| **Decode** | **~22 tok/s** at low context → **9.4 tok/s at 128K** (turbo3, llama-bench) — vs ~1.3 if you hit the `-b 16384` / `--parallel 4` traps |
 | **Quality (needle @ 8K–33K)** | `q8_0/turbo4` **9/9**, `turbo3/turbo3` **9/9** |
 
 ---
@@ -249,8 +253,7 @@ gemma4-turboquant-rdna4/
 │   ├── verify_turboquant.ps1       # Check binary / config / KV / speed
 │   └── verify_swa.ps1              # Check Gemma SWA pattern parsing
 ├── configs/
-│   ├── hermes_config.gemma.turbo4.yaml
-│   └── start_gemma_turbo4.ps1
+│   └── run_gemma4.ps1             # Self-contained llama-server launcher (recommended config)
 ├── benchmarks/
 │   ├── needle_test.py              # Long-context retrieval harness (stdlib only)
 │   ├── api_benchmark.py            # Streaming API benchmark

@@ -102,7 +102,7 @@ def fill_prompt(target_tokens):
 results = []
 
 # Load existing results if resuming
-OUT_PATH = "c:\\Users\\KaiFe\\Desktop\\hermes-claude-code-local\\benchmark_results\\api_bench_b8192.json"
+OUT_PATH = "results/api_bench_b8192.json"
 if os.path.exists(OUT_PATH):
     try:
         with open(OUT_PATH) as f:
@@ -189,7 +189,7 @@ for ctx in CONTEXTS:
         results.append({"ctx": ctx, "error": str(e)})
 
     # INCREMENTAL SAVE — write after every level so no data is lost on crash
-    out_path = "c:\\Users\\KaiFe\\Desktop\\hermes-claude-code-local\\benchmark_results\\api_bench_b8192.json"
+    out_path = "results/api_bench_b8192.json"
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)

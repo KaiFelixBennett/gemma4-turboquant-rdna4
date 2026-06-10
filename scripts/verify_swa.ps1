@@ -22,7 +22,7 @@ try {
     Write-Host "Model: $($response.data[0].id)" -ForegroundColor Green
 } catch {
     Write-Host "ERROR: Cannot connect to llama-server on port $Port" -ForegroundColor Red
-    Write-Host "  Make sure the server is running: .\start_gemma.bat" -ForegroundColor Yellow
+    Write-Host "  Start the server first, e.g.: .\configs\run_gemma4.ps1 -ModelPath <path-to-gguf>" -ForegroundColor Yellow
     exit 1
 }
 

@@ -1,11 +1,9 @@
 # How to Verify TurboQuant is Active
 
-> **Note on paths.** Some examples below reference our internal deploy layout
-> (`hermes_config.gemma.yaml`, `tools/llama.cpp/...`, `start_gemma.bat`) and are not part of
-> this repo. For a fresh clone, the binary lives at `<RepoDir>\build\bin\llama-server.exe`
-> (from `scripts/setup.ps1`), and the repo-local check is
-> `.\scripts\verify_turboquant.ps1 -BinaryDir <RepoDir>\build\bin`. The server-log, `--help`,
-> and decode-speed methods (1, 3, 5, 6) are universal regardless of how you launch the server.
+> **Note.** For a fresh clone, the binary lives at `<RepoDir>\build\bin\llama-server.exe`
+> (from `scripts/setup.ps1`). The quick repo-local check is
+> `.\scripts\verify_turboquant.ps1 -BinaryDir <RepoDir>\build\bin`; the methods below work
+> regardless of how you launch the server.
 
 After starting the server, confirm that the TurboQuant KV cache is actually being used. Methods:
 
@@ -37,25 +35,16 @@ ggml_cuda_init: found 1 CUDA devices:
   Device 0: AMD Radeon AI PRO R9700, compute capability 10.0.1, VMM: 0
 ```
 
-## Method 2: Check the Binary Directory
+## Method 2: Check the Build Output
 
-The `hermes_config.gemma.yaml` has a `binary_dir` setting:
-
-```yaml
-# OLD (broken SWA, no turbo4):
-binary_dir: "bTurboQuant-gfx1201"
-
-# NEW (SWA fix + turbo4):
-binary_dir: "bTurboQuant-gfx1201-turbo4"
-```
-
-Check which directory is being used:
+`scripts/setup.ps1` builds into `<RepoDir>\build\bin` (default `C:\models\llama-cpp-tq\build\bin`).
+Confirm the server binary and the TurboQuant-enabled HIP library are present:
 
 ```powershell
-# Check the config
-Select-String "binary_dir" hermes_config.gemma.yaml
-
-# Should show: binary_dir: "bTurboQuant-gfx1201-turbo4"
+$bin = "C:\models\llama-cpp-tq\build\bin"   # or your -RepoDir\build\bin
+Test-Path "$bin\llama-server.exe"
+# ggml-hip.dll is ~100 MB when TurboQuant kernels are compiled in:
+(Get-Item "$bin\ggml-hip.dll").Length / 1MB
 ```
 
 ## Method 3: Check the DLL Size
@@ -63,13 +52,9 @@ Select-String "binary_dir" hermes_config.gemma.yaml
 The TheTom fork's `ggml-hip.dll` is ~100 MB (includes TurboQuant kernels). The jagsan-cyber build's DLL is smaller.
 
 ```powershell
-# TheTom fork (with TurboQuant)
-(Get-Item "tools\llama.cpp\bTurboQuant-gfx1201-turbo4\ggml-hip.dll").Length / 1MB
-# ~100 MB
-
-# jagsan-cyber build (without TurboQuant)
-(Get-Item "tools\llama.cpp\bTurboQuant-gfx1201\ggml-hip.dll").Length / 1MB
-# ~50-60 MB
+$bin = "C:\models\llama-cpp-tq\build\bin"   # or your -RepoDir\build\bin
+(Get-Item "$bin\ggml-hip.dll").Length / 1MB
+# ~100 MB with TurboQuant; ~50-60 MB without
 ```
 
 ## Method 4: Run the Verification Script

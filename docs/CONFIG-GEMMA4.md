@@ -6,73 +6,32 @@
 |-----------|-------|
 | Model | Gemma-4-31B-it |
 | Architecture | Dense transformer with hybrid SWA |
-| Parameters | 31B |
+| Parameters | ~31B |
 | Layers | 60 |
-| Attention Heads | 32 Q / 16 KV (GQA) |
-| Head Dim | 256 (global) / 128 (SWA) |
 | Context Length | 262,144 (256K) |
 | SWA Window | 1,024 |
 | SWA Pattern | 5 SWA + 1 global per 6 layers |
-| Thinking Mode | Native `<\|channel\|>thought` |
-| Quantization | Q4_K_M (17.46 GiB) |
+| Thinking Mode | Native (Gemma-4 is a reasoning model) |
+| Quantization | Q4_K_M |
 
 ## Recommended Server Configuration
 
-### With TurboQuant (TheTom fork)
+Use [`configs/run_gemma4.ps1`](../configs/run_gemma4.ps1) (self-contained launcher), or pass
+these flags to `llama-server`:
 
-```yaml
-# hermes_config.gemma.turbo4.yaml
-providers:
-  local-llama-cpp:
-    name: "llama.cpp"
-    base_url: "http://127.0.0.1:8080/v1"
-    api_key: "llama.cpp"
-    api_mode: "chat_completions"
-    default_model: "Gemma-4-31B-it GGUF"
-    model: "Gemma-4-31B-it GGUF"
-    models:
-      - "Gemma-4-31B-it GGUF"
+| Flag | Value | Why |
+|------|-------|-----|
+| `--ctx-size` | `131072` (or `262144` for full 256K) | context length |
+| `--batch-size` / `--ubatch-size` | `2048` / `512` | **CRITICAL** — a 16384 batch spills VRAM at long context |
+| `--flash-attn` | `on` | required for quantized KV |
+| `--cache-type-k` / `--cache-type-v` | `q8_0` / `turbo4` | asymmetric: 8-bit keys protect attention routing, turbo4 values save memory |
+| `--parallel` | `1` | **CRITICAL** — the `--parallel 4` default swaps KV to CPU RAM at long context |
+| `--jinja --reasoning-format auto` | | Gemma-4 is a thinking model; clients must read `reasoning_content` |
 
-model:
-  path: 'E:\Coding\custom-rag\data\models\gemma-4-31b-it\gemma-4-31B-it-Q4_K_M.gguf'
-  default: "Gemma-4-31B-it GGUF"
-  chat_template: ''
-  backend: "hip"
-  binary_dir: "bTurboQuant-gfx1201"
-  provider: "custom:local-llama-cpp"
-  base_url: "http://127.0.0.1:8080/v1"
-  api_key: "llama.cpp"
-  context_length: 131072   # 128K for agentic coding; 262144 for full 256K
-  batch_size: 2048         # CRITICAL: large batch spills VRAM at long context
-  ubatch_size: 512
-  # TURBOQUANT: Asymmetric K/V for Q4_K_M models
-  # q8_0-K preserves attention routing quality
-  # turbo4-V compresses value cache 3.8x with +0.23% PPL
-  cache_type_k: "q8_0"
-  cache_type_v: "turbo4"
-  parallel_slots: 1
-  flash_attn: true
-  # Google's official sampling parameters for Gemma-4
-  temperature: 1.0
-  top_p: 0.95
-  top_k: 64
-  min_p: 0.0
-  presence_penalty: 0.0
-  repeat_penalty: 1.0
-  reasoning: on
-  reasoning_budget: 2048
-  speculative_type: "none"
-  speculative_draft_tokens: ""
-```
+Sampling (Google's Gemma-4 recommendations): `--temp 1.0 --top-p 0.95 --top-k 64`.
 
-### Without TurboQuant (jagsan-cyber fork — baseline)
-
-```yaml
-# hermes_config.gemma.yaml (current baseline)
-cache_type_k: "q4_0"
-cache_type_v: "q4_0"
-# All other settings same as above
-```
+The non-TurboQuant baseline uses `--cache-type-k q4_0 --cache-type-v q4_0` (the older
+jagsan-cyber fork — no turbo, broken SWA).
 
 ## Sampling Parameters
 
@@ -113,20 +72,7 @@ VRAM is the measured dedicated GPU memory at 128K idle with `-b 2048`.
 
 ## SWA Pattern for Gemma-4
 
-Gemma-4-31B has 60 layers with this repeating pattern:
-
-```
-Layer 0:  SWA (sliding window 1024)
-Layer 1:  SWA
-Layer 2:  SWA
-Layer 3:  SWA
-Layer 4:  SWA
-Layer 5:  Global (full attention)
-Layer 6:  SWA
-...
-Layer 59: Global
-```
-
-Pattern: `[SWA, SWA, SWA, SWA, SWA, Global]` × 10 = 50 SWA + 10 Global
-
-This means only **1/6 of layers** need full O(n²) attention, making long context feasible with correct SWA parsing.
+Gemma-4-31B has 60 layers in a repeating hybrid pattern: **5 sliding-window layers
+(window = 1024) + 1 global (full-attention) layer per 6**, i.e. 50 SWA + 10 global. Only
+1/6 of layers need full O(n²) attention, which is what makes long context feasible — provided
+the SWA pattern is parsed correctly (see [SWA-BUG.md](SWA-BUG.md)).
