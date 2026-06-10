@@ -1,5 +1,11 @@
 # PR Notes — TheTom's Fork
 
+> **Status (2026-06-10): submitted as
+> [TheTom/llama-cpp-turboquant#176](https://github.com/TheTom/llama-cpp-turboquant/pull/176)** —
+> rebased onto upstream tip `73eb521`, containing only the Flash-Attention fix (patch 0001).
+> Patch 0002 was dropped from the PR: upstream fixed the Windows build issues independently
+> in their #173.
+
 Target: **TheTom/llama-cpp-turboquant** only — both patches are fork-specific. No upstream
 ggml-org/llama.cpp PR is planned.
 

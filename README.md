@@ -90,7 +90,8 @@ TheTom's [`llama-cpp-turboquant`](https://github.com/TheTom/llama-cpp-turboquant
   `cudaStreamSynchronize`, which are **forbidden during HIP graph capture**. With
   `GGML_HIP_GRAPHS=ON`, turbo4 decode crashed instantly.
 
-**The fix** (`patches/0001-turbo4-hip-graph-safe-fattn.patch`, the basis for a PR to TheTom's fork):
+**The fix** (`patches/0001-turbo4-hip-graph-safe-fattn.patch`, submitted upstream as
+[TheTom/llama-cpp-turboquant#176](https://github.com/TheTom/llama-cpp-turboquant/pull/176)):
 
 - Route **small decode batches** (`Q->ne[1] <= 8`) through the VEC kernel *and* the memory
   pool, so capture sees no raw allocations — graph-safe.
@@ -308,7 +309,8 @@ gemma4-turboquant-rdna4/
 1. **The 128K decode collapse was a `-b 16384` Flash-Attention scratch-buffer spill**, not a
    KV, SWA, or quantization problem. `-b 2048 -ub 512` recovers 5.2x and unlocks full 256K.
 2. **TurboQuant KV and HIP graphs can coexist on RDNA4** with a small graph-capture-aware
-   Flash-Attention fix (`patches/0001`). This is the basis for a PR to TheTom's fork.
+   Flash-Attention fix (`patches/0001`) — submitted upstream as
+   [TheTom/llama-cpp-turboquant#176](https://github.com/TheTom/llama-cpp-turboquant/pull/176).
 3. **`q8_0/turbo4` is the safe default** (needle 9/9, KLD same-top 76.5%); **`turbo3/turbo3`
    is lossless for long-context retrieval** (needle 9/9) despite a poor KLD@512 — KLD@512 is
    the wrong regime, not a turbo3 verdict.
@@ -322,6 +324,19 @@ gemma4-turboquant-rdna4/
 - [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant) — llama.cpp fork with TurboQuant KV cache
 - [Reddit: Gemma-4 31B at 256K on RTX 5090](https://www.reddit.com/r/LocalLLaMA/comments/1sbdihw/) — cross-hardware reference
 - [llama.cpp Gemma-4 SWA discussion](https://github.com/ggml-org/llama.cpp/issues/21394)
+
+## Credits
+
+This work stands on three shoulders:
+
+- **[TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant)** — the
+  llama.cpp fork that brought the TurboQuant+ codec stack to llama.cpp in the first place.
+  Our patches target this fork (PR [#176](https://github.com/TheTom/llama-cpp-turboquant/pull/176));
+  this repo documents and measures, the fork does the heavy lifting.
+- **[TurboQuant](https://arxiv.org/abs/2504.19874)** (Google Research, ICLR 2026) — the
+  underlying KV-cache quantization method (random rotation + QJL error correction).
+- **[llama.cpp / ggml](https://github.com/ggml-org/llama.cpp)** — the foundation everything
+  runs on.
 
 ## License
 

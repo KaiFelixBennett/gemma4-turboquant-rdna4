@@ -1,7 +1,7 @@
 # HIP-Graph-Safe Flash-Attention for TurboQuant KV (the hero patch)
 
-This is the core contribution of the repository and the basis for a PR to
-[TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant). It makes
+This is the core contribution of the repository — submitted upstream as
+[TheTom/llama-cpp-turboquant#176](https://github.com/TheTom/llama-cpp-turboquant/pull/176). It makes
 quantized (TurboQuant) KV cache coexist with **HIP graphs** on AMD RDNA4, giving fast prefill
 *and* a usable decode without crashing.
 
