@@ -2,8 +2,8 @@
 
 > Running Google's **Gemma-4-31B-it** dense model with its **full 256K native context**
 > on a single **AMD Radeon AI PRO R9700** (gfx1201, RDNA4, 32 GB) — with a working
-> TurboQuant KV cache, HIP-graph-safe Flash-Attention, and a usable **6.63 tok/s decode
-> at 128K**.
+> TurboQuant KV cache, HIP-graph-safe Flash-Attention, and **6.63–9.38 tok/s decode
+> at 128K** (turbo4 / turbo3 KV).
 
 This repository documents a reproducible build and two surgical source patches that make
 TurboQuant's quantized KV cache coexist with **HIP graphs** on AMD RDNA4 — plus an honest,
@@ -19,7 +19,8 @@ hardware; nothing is extrapolated.
 | **Model** | Gemma-4-31B-it Q4_K_M (17.05 GiB, 30.7 B params, hybrid SWA) |
 | **GPU** | AMD Radeon AI PRO R9700 (gfx1201, RDNA4, 32 GB) — a ~$1,400 card |
 | **Max context loaded** | **256K** (full native), ~22.9 GB VRAM, ~9 GB free |
-| **Decode @ 128K** | **6.63 tok/s** with `turbo4` + `-b 2048` (was 1.28 with `-b 16384`) |
+| **Decode @ 128K (turbo4)** | **6.63 tok/s** with `turbo4` + `-b 2048` (was 1.28 with `-b 16384`) |
+| **Decode @ 128K (turbo3)** | **9.38 tok/s** with `turbo3` + `-b 2048` (~7.3× vs broken baseline) |
 | **Prefill (pp2048)** | **735 tok/s**, turbo4 KV + HIP graphs, no decode crash |
 | **Quality (needle @ 8K–33K)** | `q8_0/turbo4` **9/9**, `turbo3/turbo3` **9/9** |
 
@@ -87,7 +88,8 @@ idle* — so a full-cache decode collapses to 1.28 tok/s. The fix is one flag:
 | turbo4/turbo4, `-b 16384` | 1.28 | ❌ spill |
 | q8_0/turbo4, `-b 16384` | 1.16 | ❌ spill |
 | **turbo4/turbo4, `-b 2048`** | **6.63** | ✅ **+5.2x — pure batch fix** |
-| turbo3/turbo3, `-b 16384` | 9.75 | faster, but see quality |
+| turbo3/turbo3, `-b 16384` | 9.75 | ✅ smaller KV, fits |
+| **turbo3/turbo3, `-b 2048`** | **9.38 ± 0.93** | ✅ **best decode, recommended** |
 
 ### 3. Full 256K really fits
 
