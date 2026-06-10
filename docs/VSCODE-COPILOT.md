@@ -7,7 +7,7 @@ grew past **176K tokens of context**. Numbers from that live session are labeled
 the controlled reference numbers come from llama-bench (see [BENCHMARKS.md](BENCHMARKS.md)).
 
 <p align="center">
-  <img src="../assets/vscode-copilot-176k.png" alt="VS Code Copilot Chat using local Gemma-4-31B at ~176K context, with llama-server logs and Task Manager GPU memory" width="100%">
+  <img src="../assets/vscode-copilot-176k-spill.png" alt="VS Code Copilot Chat using local Gemma-4-31B at ~176K context, with llama-server logs and Task Manager showing 13.8 GB shared GPU memory" width="100%">
   <br>
   <em>A real Copilot agent session at ~176K context against the local server — and the moment
   we caught the session-state trap: 13.8 GB silently swapped into shared GPU memory (see below).</em>
@@ -78,6 +78,14 @@ as robust as the big cloud models, so expect an occasional retried tool call.
 **The honest ceiling:** ≤128K is the comfortable working zone on a 32 GB card. 176K+ works
 and answers correctly, but decode is slow. 262144 (full 256K) *loads* — treat it as a
 capability demo, not a daily driver.
+
+<p align="center">
+  <img src="../assets/vscode-copilot-176k-decode.png" alt="Live VS Code Copilot session at ~176K tokens: llama-server timing logs, Task Manager GPU memory, and the Copilot chat answering" width="100%">
+  <br>
+  <em>The same session in one frame: Copilot chat answering at ~176K context, llama-server
+  per-turn timings on the left, GPU memory in Task Manager — what the edge of a 32 GB card
+  actually looks like.</em>
+</p>
 
 Append-style conversations reuse the cached prefix automatically (slot LCP matching — the
 logs show `sim_best = 0.9+`), so only each turn's new suffix is prefilled. Gemma's SWA means

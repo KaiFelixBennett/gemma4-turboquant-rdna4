@@ -241,6 +241,13 @@ Want it inside your editor? [docs/VSCODE-COPILOT.md](docs/VSCODE-COPILOT.md) plu
 into **VS Code GitHub Copilot Chat** as a local custom model — including a documented real
 176K-token agent session and the server flags that make it survivable.
 
+<p align="center">
+  <img src="assets/vscode-copilot-176k-decode.png" alt="Real VS Code Copilot agent session at ~176K tokens of context running against local Gemma-4-31B on the R9700" width="100%">
+  <br>
+  <em>A real Copilot agent session at ~176K tokens of context, fully local on the R9700 —
+  server timings, GPU memory, and the chat answering, in one frame.</em>
+</p>
+
 The single-command [`scripts/setup.ps1`](scripts/setup.ps1) clones
 [`TheTom/llama-cpp-turboquant`](https://github.com/TheTom/llama-cpp-turboquant) at the tested
 commit, applies both patches in `patches/`, and builds for `gfx1201` with HIP graphs.
