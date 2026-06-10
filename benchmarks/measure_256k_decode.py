@@ -49,8 +49,9 @@ def count_tokens(base_url: str, text: str) -> int:
 
 def build_filler(target_tokens: int, base_url: str) -> str:
     """Build a filler document targeting roughly target_tokens tokens."""
-    # calibrate: ~17 tokens per sentence (from previous needle test)
-    n_sentences = target_tokens // 17
+    # Sentences average ~22 tokens each (measured: these are ~15-word English sentences).
+    # The --ctx argument is taken at face value as target tokens.
+    n_sentences = target_tokens // 22
     sentences = [FILLER_SENTENCES[i % len(FILLER_SENTENCES)] for i in range(n_sentences)]
     return FILLER_TEMPLATE + " ".join(sentences)
 

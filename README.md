@@ -20,7 +20,7 @@ hardware; nothing is extrapolated.
 | **GPU** | AMD Radeon AI PRO R9700 (gfx1201, RDNA4, 32 GB) — a ~$1,400 card |
 | **Max context loaded** | **256K** (full native), ~22.9 GB VRAM, ~9 GB free |
 | **Decode @ 128K (turbo4)** | **6.63 tok/s** with `turbo4` + `-b 2048` (was 1.28 with `-b 16384`) |
-| **Decode @ 128K (turbo3)** | **11.3 tok/s** with `turbo3` + `-b 2048` (live server; llama-bench: 9.38 ± 0.93) |
+| **Decode @ 128K (turbo3)** | **9.38 ± 0.93 tok/s** with `turbo3` + `-b 2048` (llama-bench, 131072 tokens) |
 | **Prefill (pp2048)** | **735 tok/s**, turbo4 KV + HIP graphs, no decode crash |
 | **Quality (needle @ 8K–33K)** | `q8_0/turbo4` **9/9**, `turbo3/turbo3` **9/9** |
 
@@ -89,11 +89,27 @@ idle* — so a full-cache decode collapses to 1.28 tok/s. The fix is one flag:
 | q8_0/turbo4, `-b 16384` | 1.16 | ❌ spill |
 | **turbo4/turbo4, `-b 2048`** | **6.63** | ✅ **+5.2x — pure batch fix** |
 | turbo3/turbo3, `-b 16384` | 9.75 | ✅ smaller KV, fits |
-| **turbo3/turbo3, `-b 2048`** | **11.3 tok/s** (live server) | ✅ **best decode, recommended** |
+| **turbo3/turbo3, `-b 2048`** | **9.38 ± 0.93 tok/s** (llama-bench) | ✅ **best decode, recommended** |
 
-### 3. Full 256K really fits
+### 3. Full 256K really fits — with `--parallel 1`
 
-With `-b 2048 -ub 512`, the model loads its entire native context with room to spare:
+A second hidden trap: llama-server defaults to `--parallel 4` (auto). With 4 active KV cache
+slots at 256K context each, the combined KV overflows VRAM into CPU RAM (PCIe bandwidth).
+The decode speed collapse is dramatic:
+
+| Config | True context | `--parallel` | Decode |
+|--------|-------------|-------------|--------|
+| turbo3/b=2048 | ~170K (est., no tokenizer) | 4 (auto) | 1.34 tok/s ❌ KV swapped to RAM |
+| turbo3/b=2048 | **128K (llama-bench)** | 1 | **9.38 ± 0.93 tok/s** ✅ most reliable |
+| turbo3/b=2048 | ~170K (server log confirmed) | 1 | 2.52 tok/s |
+| turbo3/b=2048 | ~131K (server log, cache restore) | 1 | 3.18 tok/s |
+
+> **Note:** the `/tokenize` endpoint returns 404 on this build, so live-server context depth is estimated from filler generation.
+> The 256K slot **loads cleanly** at 22.88 GB (~9 GB free). The 9.38 tok/s llama-bench figure is the most controlled measurement.
+
+**Always set `--parallel 1`** for single-user long-context inference on a 32 GB card.
+
+With `--parallel 1 -b 2048 -ub 512`, the model loads its entire native context with room to spare:
 
 | Context | Dedicated VRAM | Spill | Free (of 32 GB) |
 |---------|----------------|-------|-----------------|
@@ -160,7 +176,7 @@ llama-server \
     --flash-attn on \
     --cache-type-k q8_0 \      # 8-bit keys: protect attention routing (softmax is K-sensitive)
     --cache-type-v turbo4 \    # ~4.25-bit values: highest-fidelity TurboQuant level
-    --parallel 1 \
+    --parallel 1 \             # CRITICAL for long ctx: 4 slots × 256K KV overflows VRAM to CPU (1.3 → 11 tok/s diff)
     --jinja \
     --reasoning-format auto    # Gemma-4 is a thinking model — clients must read reasoning_content
 ```
