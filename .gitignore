@@ -36,3 +36,5 @@ logs/
 # Private drafts / screenshots — not for publication yet
 reddit-topics.txt
 *.png
+# ...but allow curated proof images committed under assets/
+!assets/*.png

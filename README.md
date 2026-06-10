@@ -1,9 +1,20 @@
 # Gemma-4 31B at 256K Context on a $1,400 AMD GPU — TurboQuant KV Cache on RDNA4
 
-> Running Google's **Gemma-4-31B-it** dense model with its **full 256K native context**
-> on a single **AMD Radeon AI PRO R9700** (gfx1201, RDNA4, 32 GB) — with a working
-> TurboQuant KV cache, HIP-graph-safe Flash-Attention, and **6.63–9.38 tok/s decode
-> at 128K** (turbo4 / turbo3 KV).
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![GPU: AMD RDNA4 gfx1201](https://img.shields.io/badge/GPU-AMD%20RDNA4%20gfx1201-red)
+![ROCm 7.1](https://img.shields.io/badge/ROCm-7.1-orange)
+![llama.cpp 7d9715f](https://img.shields.io/badge/llama.cpp-7d9715f-blue)
+
+> Running Google's **Gemma-4-31B-it** dense model with its **full 256K native context loaded**
+> (load-verified, ~22.9 GB of 32 GB) on a single **AMD Radeon AI PRO R9700** (gfx1201, RDNA4) —
+> with a working TurboQuant KV cache, HIP-graph-safe Flash-Attention, and **comfortable decode
+> to 128K at 9.4 tok/s** (turbo3 KV, llama-bench). Steady-state decode at the full 256K is not
+> benchmarked; everything here was measured on real hardware, nothing extrapolated.
+
+<!-- HERO IMAGE — drop the capture here once taken:
+     assets/256k-loaded.png = Task Manager GPU memory (~22.9 / 32 GB) beside the server log line "n_ctx = 262144".
+     Then replace this comment with:
+     <p align="center"><img src="assets/256k-loaded.png" alt="Gemma-4-31B at full 256K context on an AMD R9700, 22.9/32 GB VRAM" width="85%"></p> -->
 
 This repository documents a reproducible build and two surgical source patches that make
 TurboQuant's quantized KV cache coexist with **HIP graphs** on AMD RDNA4 — plus an honest,
@@ -23,6 +34,17 @@ hardware; nothing is extrapolated.
 | **Decode @ 128K (turbo3)** | **9.38 ± 0.93 tok/s** with `turbo3` + `-b 2048` (llama-bench, 131072 tokens) |
 | **Prefill (pp2048)** | **735 tok/s**, turbo4 KV + HIP graphs, no decode crash |
 | **Quality (needle @ 8K–33K)** | `q8_0/turbo4` **9/9**, `turbo3/turbo3` **9/9** |
+
+---
+
+## Does this apply to you?
+
+| You have… | What's in it for you |
+|-----------|----------------------|
+| **AMD RDNA4** (R9700, RX 9070 / 9070 XT, gfx1201) on Windows + ROCm | ✅ **Directly** — tested config + one-command build |
+| Other AMD ROCm GPU (RDNA3, gfx110x) | ⚠️ Patches likely apply; build flags differ (untested here) |
+| NVIDIA / CUDA | ⚙️ The HIP patch isn't for you, but the **two config-trap findings below apply to any GPU** |
+| **Any llama.cpp long-context user** | ✅ The `-b 16384` and `--parallel 4` defaults can quietly cost you **~5× decode** — see [docs/BENCHMARKS.md](docs/BENCHMARKS.md) |
 
 Two findings drive the whole story:
 
@@ -279,4 +301,5 @@ gemma4-turboquant-rdna4/
 
 ## License
 
-Provided as-is for the local-LLM community. llama.cpp is MIT; TurboQuant is Apache 2.0.
+This repository (docs, scripts, patches) is released under the [MIT License](LICENSE).
+Upstream components keep their own licenses: llama.cpp is MIT, TurboQuant is Apache 2.0.
