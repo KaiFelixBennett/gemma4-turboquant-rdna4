@@ -20,11 +20,11 @@
   </tr>
   <tr>
     <td><img src="assets/256k-loaded-f16-f16.png" alt="Task Manager: f16 KV at 256K demands 44.1 GB GPU memory on the 32 GB card — 30.9 GB dedicated plus 13.2 GB swapped to system RAM" width="100%"></td>
-    <td><img src="assets/256k-loaded.png" alt="Quantized KV at 256K: ~25 GB dedicated VRAM, model loaded and answering (server log shows n_ctx = 262144)" width="100%"></td>
+    <td><img src="assets/256k-loaded-t3-t3.png" alt="Task Manager: turbo3 KV at 256K uses 27.1 GB total GPU memory — 25.5 GB dedicated, only 1.6 GB shared, fits with headroom" width="100%"></td>
   </tr>
   <tr>
     <td><b>44.1 GB</b> GPU memory demanded — 13.2&nbsp;GB silently swapped to system RAM. Loads, but unusable.</td>
-    <td><b>~25 GB</b>, fully in VRAM — model loaded <i>and answering</i> (<code>n_ctx&nbsp;=&nbsp;262144</code> in the log). turbo3 load-only: <b>22.9&nbsp;GB, ~9&nbsp;GB free</b>.</td>
+    <td><b>27.1 GB</b> total — fits in VRAM with headroom (the llama-server process itself: <b>22.9&nbsp;GB + 0.55&nbsp;GB</b>, ~9&nbsp;GB free).</td>
   </tr>
 </table>
 
@@ -181,6 +181,15 @@ of GPU memory** on this 32 GB card (30.9 GB dedicated + 13.2 GB silently swapped
 RAM — Task Manager screenshot in [docs/BENCHMARKS.md](docs/BENCHMARKS.md)), and it already
 spills ~2 GB at 128K. The compressed KV cache is the measured difference between "12 GB
 overflow" and "~9 GB to spare".
+
+And it does not just *load* — it answers:
+
+<p align="center">
+  <img src="assets/256k-loaded.png" alt="llama-server log showing n_ctx = 262144 with the model loaded and responding, Task Manager showing ~25 GB dedicated VRAM" width="100%">
+  <br>
+  <em>The full 256K slot live: <code>n_ctx = 262144</code> in the server log, model responding,
+  ~25&nbsp;GB dedicated (q8_0/turbo4 fidelity config; turbo3 is lighter still).</em>
+</p>
 
 ---
 
