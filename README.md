@@ -11,11 +11,28 @@
 > native context loaded** on a single **$1,400 Radeon AI PRO R9700** (32 GB) with ~9 GB to
 > spare. Every number here was measured on real hardware; nothing is extrapolated.
 
-<p align="center">
-  <img src="assets/256k-loaded.png" alt="Gemma-4-31B-it loaded at full 256K context (n_ctx=262144) on an AMD Radeon AI PRO R9700, 25.1 of 32 GB dedicated VRAM, model loaded and responding" width="100%">
-  <br>
-  <em>Gemma-4-31B-it at its full <strong>256K context</strong> (<code>n_ctx = 262144</code>) on a single AMD Radeon AI PRO R9700 — model loaded and responding, ~25&nbsp;GB of 32&nbsp;GB dedicated VRAM in use. (turbo3/turbo3 load-only is lighter at ~22.9&nbsp;GB; see <a href="docs/BENCHMARKS.md">BENCHMARKS.md</a>.)</em>
-</p>
+**Same GPU, same model, same full 256K context — the KV cache is the entire difference:**
+
+<table>
+  <tr>
+    <th width="50%">❌ Without TurboQuant (f16 KV cache)</th>
+    <th width="50%">✅ With TurboQuant (quantized KV cache)</th>
+  </tr>
+  <tr>
+    <td><img src="assets/256k-loaded-f16-f16.png" alt="Task Manager: f16 KV at 256K demands 44.1 GB GPU memory on the 32 GB card — 30.9 GB dedicated plus 13.2 GB swapped to system RAM" width="100%"></td>
+    <td><img src="assets/256k-loaded.png" alt="Quantized KV at 256K: ~25 GB dedicated VRAM, model loaded and answering (server log shows n_ctx = 262144)" width="100%"></td>
+  </tr>
+  <tr>
+    <td><b>44.1 GB</b> GPU memory demanded — 13.2&nbsp;GB silently swapped to system RAM. Loads, but unusable.</td>
+    <td><b>~25 GB</b>, fully in VRAM — model loaded <i>and answering</i> (<code>n_ctx&nbsp;=&nbsp;262144</code> in the log). turbo3 load-only: <b>22.9&nbsp;GB, ~9&nbsp;GB free</b>.</td>
+  </tr>
+</table>
+
+<em>The KV cache is the model's working memory for your context window — it grows with every
+token you feed in, and at long context it, not the model, is what kills 32 GB cards.
+<a href="https://arxiv.org/abs/2504.19874">TurboQuant</a> (Google Research, ICLR 2026)
+compresses it to ~3–4 bits per value. This repo is the fully measured story of making that
+work on AMD RDNA4 — including the fix it needed (<a href="https://github.com/TheTom/llama-cpp-turboquant/pull/176">PR #176</a>).</em>
 
 **Two things, kept separate and honest:**
 
