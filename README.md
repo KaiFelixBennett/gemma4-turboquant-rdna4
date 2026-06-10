@@ -5,10 +5,11 @@
 ![ROCm 7.1](https://img.shields.io/badge/ROCm-7.1-orange)
 ![llama.cpp 7d9715f](https://img.shields.io/badge/llama.cpp-7d9715f-blue)
 
-> The first working setup that runs **Gemma-4-31B-it with a TurboQuant KV cache *and* HIP graphs
-> together on AMD RDNA4** (gfx1201) — **735 tok/s prefill, crash-free decode**, and the model's
-> **full 256K native context loaded** on a single **$1,400 Radeon AI PRO R9700** (32 GB) with
-> ~9 GB to spare. Every number here was measured on real hardware; nothing is extrapolated.
+> Running **Gemma-4-31B-it with a TurboQuant KV cache *and* HIP graphs together on AMD RDNA4**
+> (gfx1201) — a combination that crashes out of the box and, to our knowledge, had no published
+> working setup before. **735 tok/s prefill, crash-free decode**, and the model's **full 256K
+> native context loaded** on a single **$1,400 Radeon AI PRO R9700** (32 GB) with ~9 GB to
+> spare. Every number here was measured on real hardware; nothing is extrapolated.
 
 <p align="center">
   <img src="assets/256k-loaded.png" alt="Gemma-4-31B-it loaded at full 256K context (n_ctx=262144) on an AMD Radeon AI PRO R9700, 25.1 of 32 GB dedicated VRAM, model loaded and responding" width="100%">
