@@ -27,7 +27,11 @@ Write-Host ""
 Write-Host "[1/6] Checking prerequisites..." -ForegroundColor Yellow
 
 $hipBin = Join-Path $HIP_PATH "bin"
-$env:PATH = "$hipBin;C:\Program Files\CMake\bin;$env:PATH"
+# Merge the machine + user PATH so the VS toolchain / RC compiler are found even when this
+# script is launched from a thin shell (avoids "No CMAKE_RC_COMPILER could be found").
+$env:PATH = "$hipBin;C:\Program Files\CMake\bin;" + `
+    [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
+    [System.Environment]::GetEnvironmentVariable("Path","User")
 $env:HIP_PATH = $HIP_PATH
 
 # Check HIP
@@ -73,10 +77,16 @@ if (-not $SkipClone) {
         git checkout $Commit
         Pop-Location
     } else {
-        git clone --branch $Branch https://github.com/TheTom/llama-cpp-turboquant.git $RepoDir
+        # Full clone (not --branch/--depth) so the pinned commit is always reachable.
+        git clone https://github.com/TheTom/llama-cpp-turboquant.git $RepoDir
         Push-Location $RepoDir
+        git fetch origin $Commit
         git checkout $Commit
         Pop-Location
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: could not check out pinned commit $Commit." -ForegroundColor Red
+        exit 1
     }
 } else {
     Write-Host "[2/6] Skipping clone (requested)" -ForegroundColor Yellow
@@ -92,12 +102,21 @@ if (-not $SkipPatches) {
         Get-ChildItem -Path $patchesDir -Filter "*.patch" | Sort-Object Name | ForEach-Object {
             Write-Host "  Applying $($_.Name)..." -ForegroundColor Cyan
             Push-Location $RepoDir
+            git apply --check $_.FullName
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  ERROR: patch does not apply cleanly: $($_.Name)" -ForegroundColor Red
+                Pop-Location; exit 1
+            }
             git apply $_.FullName
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  ERROR: git apply failed: $($_.Name)" -ForegroundColor Red
+                Pop-Location; exit 1
+            }
             Pop-Location
         }
     } else {
         Write-Host "  No patch files found in $patchesDir" -ForegroundColor Yellow
-        Write-Host "  Manual patches may be required. See docs/BUILD.md" -ForegroundColor Yellow
+        Write-Host "  Manual patches may be required. See docs/BUILD-WINDOWS-HIP.md" -ForegroundColor Yellow
     }
 } else {
     Write-Host "[3/6] Skipping patches (requested)" -ForegroundColor Yellow

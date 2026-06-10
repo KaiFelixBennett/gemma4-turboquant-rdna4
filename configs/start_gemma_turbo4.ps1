@@ -2,7 +2,7 @@
 # Starts llama-server with TheTom fork + q8_0-K + turbo4-V configuration
 #
 # Prerequisites:
-#   1. Build TheTom/llama-cpp-turboquant for gfx1201 (see docs/BUILD.md)
+#   1. Build TheTom/llama-cpp-turboquant for gfx1201 (see docs/BUILD-WINDOWS-HIP.md)
 #   2. Place the built binaries in tools/llama.cpp/bTurboQuant-gfx1201-turbo4/
 #   3. Update $ConfigPath below if needed
 
@@ -33,7 +33,7 @@ Write-Host "  Config: $ConfigPath" -ForegroundColor White
 Write-Host "  KV Cache: q8_0-K + turbo4-V (asymmetric)" -ForegroundColor Green
 Write-Host ""
 Write-Host "  IMPORTANT: This requires TheTom/llama-cpp-turboquant fork!" -ForegroundColor Yellow
-Write-Host "  See docs/BUILD.md for build instructions." -ForegroundColor Yellow
+Write-Host "  See docs/BUILD-WINDOWS-HIP.md for build instructions." -ForegroundColor Yellow
 Write-Host ""
 
 # Use the shared launcher

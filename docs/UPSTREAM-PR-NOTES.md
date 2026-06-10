@@ -1,7 +1,14 @@
-# Upstream PR — Draft Notes
+# PR Notes — TheTom's Fork
 
-Two patches to submit. Patch 0001 goes to TheTom's fork first (it's turbo-KV-specific).
-Patch 0002 goes to ggml-org/llama.cpp (general Windows HIP build fix).
+Target: **TheTom/llama-cpp-turboquant** only — both patches are fork-specific. No upstream
+ggml-org/llama.cpp PR is planned.
+
+> **Why not upstream?** We checked current ggml-org/llama.cpp master. The decode crash patch
+> 0001 fixes **does not exist upstream**: upstream `launch_fattn` doesn't allocate the f16 K/V
+> dequant buffers at runtime (they're pre-computed in the dst tensor's extra space → graph-
+> capture-safe by design), and the small-batch→VEC routing already exists there. Patch 0002's
+> `cudaEventCreate` gap likewise stems from fork-specific TurboQuant code (upstream uses
+> `cudaEventCreateWithFlags`). There is no upstream bug to fix.
 
 ---
 
@@ -91,9 +98,12 @@ See `patches/0001-turbo4-hip-graph-safe-fattn.patch` in the benchmarks repo abov
 
 ---
 
-## PR 2 — ggml-org/llama.cpp
+## Companion — patch 0002 (same fork)
 
 **Title:** `HIP/Windows: drop unavailable peer-to-peer memcpy path; add cudaEventCreate mapping`
+
+These are Windows + HIP SDK 7.1 build fixes for the fork — not an upstream concern (upstream
+doesn't use `cudaEventCreate`, and its peer-memcpy path is guarded differently).
 
 ### Changes
 

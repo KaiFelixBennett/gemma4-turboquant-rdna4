@@ -30,7 +30,7 @@ model:
   backend: "hip"
   # TheTom/llama-cpp-turboquant fork with TurboQuant + SWA fix
   # Build from: https://github.com/TheTom/llama-cpp-turboquant (feature/turboquant-kv-cache)
-  # See docs/BUILD.md for Windows HIP build instructions
+  # See docs/BUILD-WINDOWS-HIP.md for Windows HIP build instructions
   binary_dir: "bTurboQuant-gfx1201-turbo4-graphs"
   provider: "custom:local-llama-cpp"
   base_url: "http://127.0.0.1:8080/v1"

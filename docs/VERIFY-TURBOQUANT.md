@@ -1,6 +1,13 @@
 # How to Verify TurboQuant is Active
 
-When you start `start_gemma.bat` (or `start_gemma_turbo4.ps1`), you need to confirm that TurboQuant KV cache is actually being used. Here are the methods:
+> **Note on paths.** Some examples below reference our internal deploy layout
+> (`hermes_config.gemma.yaml`, `tools/llama.cpp/...`, `start_gemma.bat`) and are not part of
+> this repo. For a fresh clone, the binary lives at `<RepoDir>\build\bin\llama-server.exe`
+> (from `scripts/setup.ps1`), and the repo-local check is
+> `.\scripts\verify_turboquant.ps1 -BinaryDir <RepoDir>\build\bin`. The server-log, `--help`,
+> and decode-speed methods (1, 3, 5, 6) are universal regardless of how you launch the server.
+
+After starting the server, confirm that the TurboQuant KV cache is actually being used. Methods:
 
 ## Method 1: Check Server Startup Logs (Most Reliable)
 
@@ -86,7 +93,7 @@ At 4K context with Gemma-4-31B-it Q4_K_M:
 |---------------|----------------------|
 | Broken SWA + q4_0/q4_0 | ~15-20 t/s |
 | Fixed SWA + q8_0/turbo4 | ~18-25 t/s |
-| Fixed SWA + q8_0/turbo4 at 128K | ~8-15 t/s |
+| Fixed SWA + turbo KV at 128K (`-b 2048`) | ~6-10 t/s (turbo4 ≈ 6.6, turbo3 ≈ 9.4) |
 | Broken SWA + q4_0/q4_0 at 128K | **~1.4 t/s** (catastrophic) |
 
 **If decode speed at 128K context is below 5 t/s, the SWA bug is likely present.**
@@ -116,5 +123,5 @@ llama_model_load: sliding_window_pattern = [0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 
 | `cache_type_v` in logs | `turbo4` | `q4_0` |
 | `ggml-hip.dll` size | ~100 MB | ~50-60 MB |
 | Decode @ 4K | 18-25 t/s | 15-20 t/s |
-| Decode @ 128K | 8-15 t/s | **1.4 t/s** |
+| Decode @ 128K (`-b 2048`) | 6-10 t/s (turbo4 ≈6.6 / turbo3 ≈9.4) | **1.4 t/s** |
 | SWA pattern | `[0,1,1,1,1,1]` repeating | All `0`s |

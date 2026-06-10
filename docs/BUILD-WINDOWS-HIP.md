@@ -59,11 +59,20 @@ git clone --branch feature/turboquant-kv-cache https://github.com/TheTom/llama-c
 cd llama-cpp-turboquant
 ```
 
-### 2. Apply Windows HIP Patches
+### 2. Apply the patches
 
-There are **2 required patches** for Windows + HIP. Both are in the `patches/` directory of this project.
+There are **two patches**, both in the `patches/` directory of this repo. Apply them against the pinned commit:
 
-#### Patch 1: Remove Peer-to-Peer Memcpy (ggml-cuda.cu)
+```powershell
+git checkout 7d9715f
+git apply "<path-to>\gemma4-turboquant-rdna4\patches\0001-turbo4-hip-graph-safe-fattn.patch"
+git apply "<path-to>\gemma4-turboquant-rdna4\patches\0002-windows-hip-build-fixes.patch"
+```
+
+- **0001 — HIP-graph-safe Flash-Attention** (the hero patch): makes TurboQuant KV coexist with HIP graphs (fast TILE prefill + crash-free VEC decode). **Without it, `GGML_HIP_GRAPHS=ON` + turbo KV crashes on the first decode step.** See [HIP-GRAPH-FIX.md](HIP-GRAPH-FIX.md).
+- **0002 — Windows HIP build fixes**: the two changes shown below (peer-memcpy removal + `cudaEventCreate` mapping). `git apply` performs them for you; they are reproduced here only for reference.
+
+#### Patch 0002, part 1: Remove Peer-to-Peer Memcpy (ggml-cuda.cu)
 
 HIP on Windows does not support `cudaMemcpy3DPeerParms` / `hipMemcpy3DPeerParms`. The peer-to-peer branch must be removed so the code always uses the staging buffer fallback.
 
@@ -96,7 +105,7 @@ HIP on Windows does not support `cudaMemcpy3DPeerParms` / `hipMemcpy3DPeerParms`
     }
 ```
 
-#### Patch 2: Add cudaEventCreate Mapping (hip.h)
+#### Patch 0002, part 2: Add cudaEventCreate Mapping (hip.h)
 
 **File**: `ggml/src/ggml-cuda/vendors/hip.h`  
 **Location**: After the existing `#define cudaFuncAttributeMaxDynamicSharedMemorySizeBytes` line
@@ -124,6 +133,7 @@ Write-Host "Using Ninja: $ninjaPath"
 cmake -S . -B build -G Ninja `
     -DGPU_TARGETS=gfx1201 `
     -DGGML_HIP=ON `
+    -DGGML_HIP_GRAPHS=ON `
     -DGGML_CUDA_FA_ALL_QUANTS=ON `
     -DCMAKE_C_COMPILER=clang `
     -DCMAKE_CXX_COMPILER=clang++ `
@@ -150,7 +160,7 @@ build\bin\llama-server.exe --help | Select-String "turbo"
 # Quick test with Gemma-4
 $env:Path = "C:\Program Files\AMD\ROCm\7.1\bin;" + $env:Path
 build\bin\llama-cli.exe `
-    -m "E:\Coding\custom-rag\data\models\gemma-4-31b-it\gemma-4-31B-it-Q4_K_M.gguf" `
+    -m "<path-to>\gemma-4-31B-it-Q4_K_M.gguf" `
     -ngl 99 -c 4096 -fa on `
     --cache-type-k q8_0 --cache-type-v turbo4 `
     -n 50 -p "Hello, I am a language model running on"
@@ -164,10 +174,10 @@ Expected output should show:
 
 ### 6. Deploy
 
-Copy the built binaries to your project:
+Optional — copy the built binaries somewhere convenient (you can also just run them from `build\bin`):
 
 ```powershell
-$dest = "C:\Users\KaiFe\Desktop\hermes-claude-code-local\tools\llama.cpp\bTurboQuant-gfx1201-turbo4"
+$dest = "<path-to>\your-deploy-dir"
 New-Item -ItemType Directory -Force -Path $dest
 
 # Copy essential files
@@ -183,6 +193,11 @@ Copy-Item "build\bin\llama-common.dll" $dest
 ```
 
 ## Known Issues & Gotchas
+
+> The source-level fixes in items 2–5 and 7 below were needed on **earlier** bases and are
+> already incorporated at the pinned commit `7d9715f` — you should **not** need to edit source
+> by hand (only `git apply` the two patches above). They are kept here as troubleshooting
+> reference: if your build fails with one of these specific errors, apply the matching fix.
 
 ### 1. VS 2019 Does NOT Work
 The `common/` library uses C++17/20 `<functional>` headers that VS 2019's v14.28 doesn't support. **Must use VS 2022.**

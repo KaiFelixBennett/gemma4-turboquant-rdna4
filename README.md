@@ -11,10 +11,11 @@
 > to 128K at 9.4 tok/s** (turbo3 KV, llama-bench). Steady-state decode at the full 256K is not
 > benchmarked; everything here was measured on real hardware, nothing extrapolated.
 
-<!-- HERO IMAGE — drop the capture here once taken:
-     assets/256k-loaded.png = Task Manager GPU memory (~22.9 / 32 GB) beside the server log line "n_ctx = 262144".
-     Then replace this comment with:
-     <p align="center"><img src="assets/256k-loaded.png" alt="Gemma-4-31B at full 256K context on an AMD R9700, 22.9/32 GB VRAM" width="85%"></p> -->
+<p align="center">
+  <img src="assets/256k-loaded.png" alt="Gemma-4-31B-it loaded at full 256K context (n_ctx=262144) on an AMD Radeon AI PRO R9700, 25.1 of 32 GB dedicated VRAM, model loaded and responding" width="100%">
+  <br>
+  <em>Gemma-4-31B-it at its full <strong>256K context</strong> (<code>n_ctx = 262144</code>) on a single AMD Radeon AI PRO R9700 — model loaded and responding, ~25&nbsp;GB of 32&nbsp;GB dedicated VRAM in use. (turbo3/turbo3 load-only is lighter at ~22.9&nbsp;GB; see <a href="docs/BENCHMARKS.md">BENCHMARKS.md</a>.)</em>
+</p>
 
 This repository documents a reproducible build and two surgical source patches that make
 TurboQuant's quantized KV cache coexist with **HIP graphs** on AMD RDNA4 — plus an honest,
@@ -79,7 +80,7 @@ TheTom's [`llama-cpp-turboquant`](https://github.com/TheTom/llama-cpp-turboquant
   `cudaStreamSynchronize`, which are **forbidden during HIP graph capture**. With
   `GGML_HIP_GRAPHS=ON`, turbo4 decode crashed instantly.
 
-**The fix** (`patches/0001-turbo4-hip-graph-safe-fattn.patch`, the basis for an upstream PR):
+**The fix** (`patches/0001-turbo4-hip-graph-safe-fattn.patch`, the basis for a PR to TheTom's fork):
 
 - Route **small decode batches** (`Q->ne[1] <= 8`) through the VEC kernel *and* the memory
   pool, so capture sees no raw allocations — graph-safe.
@@ -198,7 +199,7 @@ llama-server \
     --flash-attn on \
     --cache-type-k q8_0 \      # 8-bit keys: protect attention routing (softmax is K-sensitive)
     --cache-type-v turbo4 \    # ~4.25-bit values: highest-fidelity TurboQuant level
-    --parallel 1 \             # CRITICAL for long ctx: 4 slots × 256K KV overflows VRAM to CPU (1.3 → 9.4 tok/s diff)
+    --parallel 1 \             # CRITICAL: --parallel 4 default swaps KV to CPU RAM at long ctx (measured 1.3 vs 9.4 t/s at 128K)
     --jinja \
     --reasoning-format auto    # Gemma-4 is a thinking model — clients must read reasoning_content
 ```
@@ -260,8 +261,9 @@ gemma4-turboquant-rdna4/
     ├── BENCHMARKS.md               # Full measured numbers + methodology
     ├── QUALITY.md                  # KLD + needle quality study
     ├── CONFIG-GEMMA4.md            # Config reference
-    ├── SWA-BUG.md                  # Upstream Gemma-4 SWA parsing bug (fixed in fork)
-    └── VERIFY-TURBOQUANT.md        # How to confirm TurboQuant is active
+    ├── SWA-BUG.md                  # Gemma-4 hybrid-SWA parsing bug (fixed in the fork)
+    ├── VERIFY-TURBOQUANT.md        # How to confirm TurboQuant is active
+    └── UPSTREAM-PR-NOTES.md        # PR notes (TheTom's fork)
 ```
 
 ---
@@ -284,7 +286,7 @@ gemma4-turboquant-rdna4/
 1. **The 128K decode collapse was a `-b 16384` Flash-Attention scratch-buffer spill**, not a
    KV, SWA, or quantization problem. `-b 2048 -ub 512` recovers 5.2x and unlocks full 256K.
 2. **TurboQuant KV and HIP graphs can coexist on RDNA4** with a small graph-capture-aware
-   Flash-Attention fix (`patches/0001`). This is the basis for an upstream contribution.
+   Flash-Attention fix (`patches/0001`). This is the basis for a PR to TheTom's fork.
 3. **`q8_0/turbo4` is the safe default** (needle 9/9, KLD same-top 76.5%); **`turbo3/turbo3`
    is lossless for long-context retrieval** (needle 9/9) despite a poor KLD@512 — KLD@512 is
    the wrong regime, not a turbo3 verdict.

@@ -62,12 +62,15 @@ This reads each byte individually as `uint8_t` and converts to bool explicitly, 
 
 ### Evidence
 
-| Metric | Broken SWA | Fixed SWA | Improvement |
-|--------|-----------|-----------|-------------|
-| Decode @ 128K (RTX 5090) | N/A | 61.5 t/s | — |
-| Decode @ 128K (R9700) | 1.4 t/s | ~40-60 t/s (expected) | **30-44x** |
-| KV cache size | 6x over-allocated | Correct | 6x reduction |
-| VRAM usage | 27.2 GB | ~22 GB (est.) | ~5 GB savings |
+All R9700 numbers below were measured on this hardware (full data in
+[BENCHMARKS.md](BENCHMARKS.md)); the RTX 5090 figure is a third-party report, not ours.
+Nothing here is extrapolated.
+
+| Metric | Broken-SWA baseline | Our build (SWA fix) | Note |
+|--------|---------------------|---------------------|------|
+| Decode @ 128K (R9700) | 1.4 t/s (q4_0/q4_0, `-b 8192`) | 9.38 ± 0.93 t/s (turbo3, `-b 2048`) | ~6.7×, **but the 128K cliff is driven mainly by the batch-buffer spill, not SWA** (see caveat above) |
+| KV cache | all 60 layers treated as global (≈6× over) | 50 of 60 layers capped at the 1024 window | restores Gemma's intended hybrid SWA — the fix's real win is correctness + mid-context efficiency |
+| Decode @ 128K (RTX 5090) | — | 61.5 t/s | Reddit report, different hardware — **not measured here**, cross-hardware reference only |
 
 ### How to Verify the Bug
 
@@ -84,7 +87,7 @@ Run llama-server with Gemma-4 and check the SWA pattern:
 
 ## References
 
-- [Reddit: Gemma 4 31B at 256K on RTX 5090](https://www.reddit.com/r/LocalLLaMA/comments/1sbdihw/) — Original report of the bug and fix
-- [llama.cpp issue #21394](https://github.com/ggml-org/llama.cpp/issues/21394) — "Gemma4 attn_rot_k and v = 0"
-- [TheTom/turboquant_plus cross-model validation](https://github.com/TheTom/turboquant_plus/blob/main/docs/cross-model-validation.md) — ISWA bug discovery and fix
-- [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant) — Fork with the fix
+- [TheTom/turboquant_plus — cross-model validation](https://github.com/TheTom/turboquant_plus/blob/main/docs/cross-model-validation.md) — where the ISWA (hybrid-SWA) bug was discovered (via cross-model testing — "would never have been found on Qwen alone")
+- [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant) — the fork that carries the fix
+- [llama.cpp issue #21394](https://github.com/ggml-org/llama.cpp/issues/21394) — "Eval bug: Gemma4 attn_rot_k and v = 0" — a *related* Gemma-4 eval issue, not necessarily the same root cause as this SWA-pattern misparse
+- [Reddit: Gemma 4 31B at 256K on RTX 5090](https://www.reddit.com/r/LocalLLaMA/comments/1sbdihw/) — cross-hardware reference (256K on a 5090)
