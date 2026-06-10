@@ -1,9 +1,17 @@
 # HIP-Graph-Safe Flash-Attention for TurboQuant KV (the hero patch)
 
-This is the core contribution of the repository and the basis for an upstream PR to
+This is the core contribution of the repository and the basis for a PR to
 [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant). It makes
 quantized (TurboQuant) KV cache coexist with **HIP graphs** on AMD RDNA4, giving fast prefill
 *and* a usable decode without crashing.
+
+> **Framing note (2026-06-10):** This patch fixes a **fork-specific regression** in TheTom's
+> llama-cpp-turboquant, not an upstream llama.cpp bug. The upstream `launch_fattn` does not
+> allocate f16 dequant buffers at runtime (they are pre-computed in the destination tensor's
+> extra space), making it graph-capture-safe by design. The batch-aware routing (`Q->ne[1] <= 8`
+> → VEC) also already exists upstream (with threshold 2). Our contribution is making TurboQuant
+> work on RDNA4 within TheTom's fork — the first known working setup. No upstream llama.cpp PR
+> is planned; the target is TheTom's fork only.
 
 Patch file: [`../patches/0001-turbo4-hip-graph-safe-fattn.patch`](../patches/0001-turbo4-hip-graph-safe-fattn.patch)
 (against commit `7d9715f`).
