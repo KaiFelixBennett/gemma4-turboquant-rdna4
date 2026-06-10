@@ -37,7 +37,7 @@ BEFORE = """
 
 AFTER_HDR = """
 ┌─ AFTER (patched: -b 2048, turbo3 KV, HIP-graph-safe FA) ────────┐
-│  Decode @ 128K:  ~10 tok/s   (✓ usable for agentic coding)       │
+│  Decode @ 128K:  11.3 tok/s  (✓ usable for agentic coding)       │
 │  VRAM @ 256K:   22.88 GB dedicated  (~9 GB free)                 │
 │  256K context:  loads cleanly ✓                                  │
 └──────────────────────────────────────────────────────────────────┘

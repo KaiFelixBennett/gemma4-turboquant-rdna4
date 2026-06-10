@@ -71,7 +71,7 @@ def stream_at_depth(base_url: str, filler: str, question: str, max_tokens: int) 
                                   headers={"Content-Type": "application/json"})
     tokens = 0
     first_t = None
-    with urllib.request.urlopen(req, timeout=600) as resp:
+    with urllib.request.urlopen(req, timeout=3600) as resp:
         for raw in resp:
             line = raw.decode().strip()
             if not line.startswith("data: "):
