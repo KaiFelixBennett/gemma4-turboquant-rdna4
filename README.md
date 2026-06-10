@@ -176,7 +176,7 @@ llama-server \
     --flash-attn on \
     --cache-type-k q8_0 \      # 8-bit keys: protect attention routing (softmax is K-sensitive)
     --cache-type-v turbo4 \    # ~4.25-bit values: highest-fidelity TurboQuant level
-    --parallel 1 \             # CRITICAL for long ctx: 4 slots × 256K KV overflows VRAM to CPU (1.3 → 11 tok/s diff)
+    --parallel 1 \             # CRITICAL for long ctx: 4 slots × 256K KV overflows VRAM to CPU (1.3 → 9.4 tok/s diff)
     --jinja \
     --reasoning-format auto    # Gemma-4 is a thinking model — clients must read reasoning_content
 ```

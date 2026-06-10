@@ -70,8 +70,30 @@ edge while idle. The KV difference between turbo3 and turbo4 is only ~1 GB.
 | q8_0/turbo4 | 16384 | 1.16 | ❌ spill |
 | **turbo4/turbo4** | **2048** | **6.63** | ✅ **+5.2x — pure batch fix** |
 | turbo3/turbo3 | 16384 | 9.75 | faster (smaller KV), see QUALITY.md |
+| **turbo3/turbo3** | **2048** | **9.38 ± 0.93** | ✅ **recommended — best decode (llama-bench, source of truth)** |
 
 **Dropping `-b 16384` → `-b 2048` alone recovers 5.2x decode at 128K with no quality change.**
+The recommended `turbo3/turbo3 -b 2048` config sustains **9.38 ± 0.93 t/s at 128K** (llama-bench
+`tg128 @ d131072`, `-r 1`) — this is the most controlled long-context decode figure we have.
+
+### The second trap: `--parallel 1`
+
+There is a second, independent config artifact with the same symptom. `llama-server` defaults to
+`--parallel 4` (auto). Four active KV-cache slots multiply the KV footprint by 4× at long
+context → it overflows VRAM into CPU RAM over PCIe, and decode collapses just like the
+batch-buffer spill:
+
+| Config | Context | `--parallel` | Decode | |
+|--------|---------|--------------|--------|---|
+| turbo3/turbo3, `-b 2048` | ~170K (est.) | 4 (auto) | 1.34 t/s | ❌ KV swapped to CPU RAM |
+| turbo3/turbo3, `-b 2048` | 128K (llama-bench) | 1 | **9.38 ± 0.93** | ✅ controlled source of truth |
+
+> Live-server depth figures are estimates — the `/tokenize` endpoint returns 404 on this build,
+> so context depth is inferred from filler generation (live-server `--parallel 1` runs at
+> ~131K–170K read 2.52–3.18 t/s, but those depths are unverified). The 9.38 t/s llama-bench
+> number is the reliable reference. The conclusion holds regardless: **`--parallel 4` (the
+> default) swaps KV to CPU RAM at long context — always set `--parallel 1` for single-user
+> long-context inference on a 32 GB card.**
 
 ---
 
@@ -88,6 +110,12 @@ turbo3/turbo3, `-b 2048 -ub 512`, load-only:
 | **256K** | ✅ | **22.88 GB** | 0.55 GB | **~9 GB** |
 
 KV grows only ~0.58 GB per 32K — Gemma's SWA caps 5 of every 6 layers at a 1024-token window.
+
+> **Decode at 256K was not benchmarked.** The 256K figures above are **load-only** (VRAM
+> after model load). A steady-state 256K decode run requires a full 256K prefill, which we did
+> not capture. The reliable long-context decode reference remains **9.38 ± 0.93 t/s at 128K**
+> (turbo3/turbo3, `-b 2048`, llama-bench). 256K is demonstrated here to *load and run* with
+> ~9 GB free — not measured for steady decode throughput.
 
 ---
 
@@ -149,6 +177,10 @@ same GPU, same build, same methodology — only the model architecture differs.
 | Context | Dedicated VRAM | Spill | Status |
 |---------|---------------|-------|--------|
 | 256K (turbo3) | 26.01 GB | 0.60 GB | ✅ fits |
+
+> **Decode at 256K was not measured for Qwen.** The dense 256K prefill (O(n²), no SWA) is
+> prohibitively long and the run was not captured. The deepest reliable Qwen decode point is
+> **13.47 t/s at 128K** (turbo3). The row above confirms only that the cache *loads* in VRAM.
 
 ### Key insight: TurboQuant is NOT a universal speed boost
 
