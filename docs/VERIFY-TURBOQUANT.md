@@ -35,6 +35,16 @@ ggml_cuda_init: found 1 CUDA devices:
   Device 0: AMD Radeon AI PRO R9700, compute capability 10.0.1, VMM: 0
 ```
 
+A real startup on the R9700 (launcher banner + llama.cpp log) — this is what a correct
+TurboQuant configuration looks like:
+
+<p align="center">
+  <img src="../assets/llama.cpp.start.log.png" alt="llama-server startup on the R9700: backend hip, ctx 262144, CacheK turbo3, CacheV turbo3, flash attention on, single slot, AMD Radeon AI PRO R9700 with 32624 MiB detected" width="90%">
+  <br>
+  <em>turbo3/turbo3 KV, <code>Ctx: 262144</code>, Flash on, single slot, batch 2048/512 —
+  and the R9700 (32,624 MiB) detected on ROCm0.</em>
+</p>
+
 ## Method 2: Check the Build Output
 
 `scripts/setup.ps1` builds into `<RepoDir>\build\bin` (default `C:\models\llama-cpp-tq\build\bin`).
