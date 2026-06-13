@@ -1,8 +1,8 @@
 diff --git a/ggml/src/ggml-cuda/fattn-common.cuh b/ggml/src/ggml-cuda/fattn-common.cuh
-index d3e95f6..f0bc2d1 100644
+index d3e95f6..e06a40e 100644
 --- a/ggml/src/ggml-cuda/fattn-common.cuh
 +++ b/ggml/src/ggml-cuda/fattn-common.cuh
-@@ -1298,17 +1298,41 @@ void launch_fattn(
+@@ -1298,17 +1298,48 @@ void launch_fattn(
      const int nsm = ggml_cuda_info().devices[id].nsm;
  
  #ifdef GGML_USE_HIP
@@ -28,6 +28,13 @@ index d3e95f6..f0bc2d1 100644
 +    //
 +    // Small batches (Q->ne[1] <= 8) always route through the pool so the warmup run
 +    // populates it; these match the decode/speculative cases that get captured.
++    //
++    // Caveat (memory, not correctness): when a captured decode cannot use VEC
++    // (head_dim == 192, or K->ne[1] not a multiple of FATTN_KQ_STRIDE) it falls
++    // through to this TILE/MMA path and pool-allocs the full f16 dequant buffer.
++    // The legacy pool then retains that buffer permanently -- these configs trade
++    // VRAM for graph compatibility. VEC-eligible head dims (e.g. Gemma) never hit
++    // this: their decode uses the VEC kernel, which does not call launch_fattn.
 +    cudaStreamCaptureStatus fa_capture_status = cudaStreamCaptureStatusNone;
 +    CUDA_CHECK(cudaStreamIsCapturing(main_stream, &fa_capture_status));
 +    const bool fa_use_pool = (fa_capture_status != cudaStreamCaptureStatusNone) || (Q->ne[1] <= 8);
@@ -53,7 +60,7 @@ index d3e95f6..f0bc2d1 100644
                  // Cast to void: hipStreamSynchronize / hipFree are [[nodiscard]] under
                  // HIP's -Werror policy; we're in a destructor and can't propagate errors.
                  (void) cudaStreamSynchronize(stream);
-@@ -1316,11 +1340,15 @@ void launch_fattn(
+@@ -1316,11 +1347,15 @@ void launch_fattn(
              }
          }
          void alloc(size_t nelements) {
