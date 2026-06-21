@@ -137,6 +137,8 @@ load-only method, `-b 2048 -ub 512 --parallel 1 -fa on`, no cache-type flags = f
 |--------|---------|--------------------:|--------------------:|---------|
 | f16/f16 | 131072 | 27.41 GB | **2.03 GB** | already spilling while idle |
 | f16/f16 | 262144 | 27.81 GB | **12.24 GB** | ~40 GB demand — far beyond the card |
+| q8_0/q8_0 | 262144 | 29.50 GB | 0.60 GB | loads, but very tight (load-only, 2026-06-17) |
+| q4_0/q4_0 | 262144 | 24.19 GB | 0.60 GB | loads (load-only, 2026-06-17) |
 | turbo3/turbo3 | 262144 | 22.88 GB | 0.55 GB | ✅ fits, ~9 GB free |
 
 System-wide, Task Manager showed **44.1 GB total GPU memory demand** for f16 at 256K
@@ -154,6 +156,10 @@ System-wide, Task Manager showed **44.1 GB total GPU memory demand** for f16 at 
 > not capture. The reliable long-context decode reference remains **9.38 ± 0.93 t/s at 128K**
 > (turbo3/turbo3, `-b 2048`, llama-bench). 256K is demonstrated here to *load and run* with
 > ~9 GB free — not measured for steady decode throughput.
+>
+> **q8_0/q4_0 load-only (2026-06-17):** q8_0/q8_0 needs 29.5 GB and q4_0/q4_0 24.2 GB at 256K idle.
+> Both load, but with less headroom than turbo3 they spill earlier once the context actually fills —
+> the comfortable working zone stays at 128K (see §3). Loading is not the same as running a full context.
 
 ---
 
