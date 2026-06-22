@@ -39,11 +39,10 @@ work on AMD RDNA4 — including the fix it needed (<a href="https://github.com/T
 1. **A fix (new).** A small HIP-graph-safe Flash-Attention patch makes TurboQuant's quantized
    KV cache coexist with HIP graphs on RDNA4 — fast TILE prefill (**735 tok/s**) *and* crash-free
    VEC decode. Out of the box, turbo KV + `GGML_HIP_GRAPHS=ON` crashes on the first decode step.
-2. **A measured study.** The full **256K** context *loads and runs* on a 32 GB card, and three
+2. **A measured study.** The full **256K** context *loads and runs* on a 32 GB card, and two
    config traps — a tempting oversized batch (`-b 16384` is *not* a default; we walked into it
-   ourselves) plus two genuine llama-server defaults (`--parallel 4`, session-state) — silently
-   cost **5–10× decode**. (256K *loading* itself is a turbo3 + Gemma-SWA + small-batch result —
-   **not** caused by the patch.)
+   ourselves) plus a genuine llama-server default (session-state) — silently cost **5–10× decode**.
+   (256K *loading* itself is a turbo3 + Gemma-SWA + small-batch result — **not** caused by the patch.)
 
 Everything here was measured on real hardware; nothing is extrapolated.
 
@@ -57,7 +56,7 @@ Everything here was measured on real hardware; nothing is extrapolated.
 | **GPU** | AMD Radeon AI PRO R9700 (gfx1201, RDNA4, 32 GB) — a ~$1,400 card |
 | **Max context loaded** | **256K** (full native), ~22.9 GB VRAM, ~9 GB free |
 | **Prefill (pp2048)** | **735 tok/s** — turbo4 KV + HIP graphs, no crash |
-| **Decode** | **~22 tok/s** at low context → **9.4 tok/s at 128K** (turbo3, llama-bench) — vs ~1.3 if you hit the `-b 16384` / `--parallel 4` traps |
+| **Decode** | **~22 tok/s** at low context → **9.4 tok/s at 128K** (turbo3, llama-bench) — vs ~1.3 if you hit the `-b 16384` batch trap |
 | **Quality (needle @ 8K–33K)** | `q8_0/turbo4` **9/9**, `turbo3/turbo3` **9/9** |
 
 ---
@@ -68,8 +67,8 @@ Everything here was measured on real hardware; nothing is extrapolated.
 |-----------|----------------------|
 | **AMD RDNA4** (R9700, RX 9070 / 9070 XT, gfx1201) on Windows + ROCm | ✅ **Directly** — tested config + one-command build |
 | Other AMD ROCm GPU (RDNA3, gfx110x) | ⚠️ Patches likely apply; build flags differ (untested here) |
-| NVIDIA / CUDA | ⚙️ The HIP patch isn't for you, but the **three config-trap findings below apply to any GPU** |
-| **Any llama.cpp long-context user** | ✅ Three config traps (an oversized `-b`, the `--parallel 4` default, server session-state defaults) can quietly cost you **5–10× decode** — see [docs/BENCHMARKS.md](docs/BENCHMARKS.md) |
+| NVIDIA / CUDA | ⚙️ The HIP patch isn't for you, but the **two config-trap findings below apply to any GPU** |
+| **Any llama.cpp long-context user** | ✅ Two config traps (an oversized `-b` and server session-state defaults) can quietly cost you **5–10× decode** — see [docs/BENCHMARKS.md](docs/BENCHMARKS.md) |
 | **VS Code Copilot user** | ✅ [docs/VSCODE-COPILOT.md](docs/VSCODE-COPILOT.md) wires this into Copilot Chat as a local model — real **176K-token agent session** documented |
 
 Three findings drive the whole story:
@@ -82,7 +81,7 @@ Three findings drive the whole story:
    HIP graph capture is enabled (`operation not permitted when stream is capturing`). Two
    small patches (`patches/0001-…`) make Flash-Attention graph-capture-safe on decode while
    keeping the fast TILE kernel for prefill.
-3. **llama-server's session-state defaults are a third silent trap for SWA models.** At 256K,
+3. **llama-server's session-state defaults are another silent trap for SWA models.** At 256K,
    32 context checkpoints (~7.3 GB) plus an 8 GB prompt cache pushed **13.8 GB into shared
    GPU memory** during a real 176K VS Code session and collapsed decode to 0.85 tok/s.
    `--ctx-checkpoints 4 --cache-ram 0` recovered ~2.6× — see [docs/VSCODE-COPILOT.md](docs/VSCODE-COPILOT.md).
@@ -94,8 +93,8 @@ Three findings drive the whole story:
 The goal: run Gemma-4-31B-it at its full 256K context on an AMD Radeon AI PRO R9700
 (gfx1201, RDNA4, 32 GB) for agentic coding — where long context actually matters.
 
-Three obstacles stood in the way, and each turned out to be a *configuration or integration*
-problem rather than a hardware limit:
+Two obstacles stood in the way, each a *configuration or integration* problem rather than a
+hardware limit. Clearing both let the full 256K context load:
 
 ### 1. TurboQuant KV crashed under HIP graphs
 
@@ -144,25 +143,10 @@ idle* — so a full-cache decode collapses to 1.28 tok/s. The fix is one flag:
 | turbo3/turbo3, `-b 16384` | 9.75 | ✅ smaller KV, fits |
 | **turbo3/turbo3, `-b 2048`** | **9.38 ± 0.93 tok/s** (llama-bench) | ✅ **best decode, recommended** |
 
-### 3. Full 256K really fits — with `--parallel 1`
+### 3. Full 256K really fits
 
-A second hidden trap: llama-server defaults to `--parallel 4` (auto). With 4 active KV cache
-slots at 256K context each, the combined KV overflows VRAM into CPU RAM (PCIe bandwidth).
-The decode speed collapse is dramatic:
-
-| Config | True context | `--parallel` | Decode |
-|--------|-------------|-------------|--------|
-| turbo3/b=2048 | ~170K (est., no tokenizer) | 4 (auto) | 1.34 tok/s ❌ KV swapped to RAM |
-| turbo3/b=2048 | **128K (llama-bench)** | 1 | **9.38 ± 0.93 tok/s** ✅ most reliable |
-| turbo3/b=2048 | ~170K (server log confirmed) | 1 | 2.52 tok/s |
-| turbo3/b=2048 | ~131K (server log, cache restore) | 1 | 3.18 tok/s |
-
-> **Note:** the `/tokenize` endpoint returns 404 on this build, so live-server context depth is estimated from filler generation.
-> The 256K slot **loads cleanly** at 22.88 GB (~9 GB free). The 9.38 tok/s llama-bench figure is the most controlled measurement.
-
-**Always set `--parallel 1`** for single-user long-context inference on a 32 GB card.
-
-With `--parallel 1 -b 2048 -ub 512`, the model loads its entire native context with room to spare:
+The full 256K context loads cleanly at 22.88 GB (~9 GB free). With `-b 2048 -ub 512`, turbo3/turbo3
+loads its entire native context with room to spare:
 
 | Context | Dedicated VRAM | Spill | Free (of 32 GB) |
 |---------|----------------|-------|-----------------|
@@ -244,7 +228,7 @@ llama-server \
     --flash-attn on \
     --cache-type-k q8_0 \      # 8-bit keys: protect attention routing (softmax is K-sensitive)
     --cache-type-v turbo4 \    # ~4.25-bit values: highest-fidelity TurboQuant level
-    --parallel 1 \             # CRITICAL: --parallel 4 default swaps KV to CPU RAM at long ctx (measured 1.3 vs 9.4 t/s at 128K)
+    --parallel 1 \             # single user; auto spawns 4 slots but kv_unified shares the cache (no memory penalty)
     --jinja \
     --reasoning-format auto    # Gemma-4 is a thinking model — clients must read reasoning_content
 ```

@@ -76,26 +76,7 @@ edge while idle. The KV difference between turbo3 and turbo4 is only ~1 GB.
 The recommended `turbo3/turbo3 -b 2048` config sustains **9.38 ± 0.93 t/s at 128K** (llama-bench
 `tg128 @ d131072`, `-r 1`) — this is the most controlled long-context decode figure we have.
 
-### The second trap: `--parallel 1`
-
-There is a second, independent config artifact with the same symptom. `llama-server` defaults to
-`--parallel 4` (auto). Four active KV-cache slots multiply the KV footprint by 4× at long
-context → it overflows VRAM into CPU RAM over PCIe, and decode collapses just like the
-batch-buffer spill:
-
-| Config | Context | `--parallel` | Decode | |
-|--------|---------|--------------|--------|---|
-| turbo3/turbo3, `-b 2048` | ~170K (est.) | 4 (auto) | 1.34 t/s | ❌ KV swapped to CPU RAM |
-| turbo3/turbo3, `-b 2048` | 128K (llama-bench) | 1 | **9.38 ± 0.93** | ✅ controlled source of truth |
-
-> Live-server depth figures are estimates — the `/tokenize` endpoint returns 404 on this build,
-> so context depth is inferred from filler generation (live-server `--parallel 1` runs at
-> ~131K–170K read 2.52–3.18 t/s, but those depths are unverified). The 9.38 t/s llama-bench
-> number is the reliable reference. The conclusion holds regardless: **`--parallel 4` (the
-> default) swaps KV to CPU RAM at long context — always set `--parallel 1` for single-user
-> long-context inference on a 32 GB card.**
-
-### The third trap: llama-server session-state defaults (SWA models)
+### The session-state trap: llama-server defaults (SWA models)
 
 Found during a real 176K-token VS Code Copilot session (live-session measurements, not
 llama-bench): decode collapsed progressively from 2.11 t/s (@ ~107K fill) to **0.85 t/s**

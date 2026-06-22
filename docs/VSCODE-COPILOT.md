@@ -18,8 +18,8 @@ the controlled reference numbers come from llama-bench (see [BENCHMARKS.md](BENC
 ## 1. Server
 
 Start `llama-server` with the recommended config ([`configs/run_gemma4.ps1`](../configs/run_gemma4.ps1))
-**plus three flags that cap llama-server's session state** — without them, long Copilot
-sessions with an SWA model silently eat ~15 GB extra (the third config trap, measured below):
+**plus two flags that cap llama-server's session state** (`--ctx-checkpoints 4` and `--cache-ram 0`) — without them, long Copilot
+sessions with an SWA model silently eat ~15 GB extra (the session-state trap, measured below):
 
 ```powershell
 llama-server `
@@ -92,7 +92,7 @@ logs show `sim_best = 0.9+`), so only each turn's new suffix is prefilled. Gemma
 `--cache-reuse` itself is unsupported (`cache_reuse is not supported by this context`) — that
 line in the log is expected, not an error.
 
-## 4. The third config trap: llama-server session state
+## 4. The session-state trap: llama-server session state
 
 During the 176K session, decode collapsed progressively (2.11 t/s at 107K → **0.85 t/s** at
 187K) and Task Manager showed **13.8 GB in shared GPU memory** (= system RAM over PCIe) on

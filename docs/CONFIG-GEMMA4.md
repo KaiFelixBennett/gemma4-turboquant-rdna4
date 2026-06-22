@@ -25,7 +25,7 @@ these flags to `llama-server`:
 | `--batch-size` / `--ubatch-size` | `2048` / `512` | **CRITICAL** — a 16384 batch spills VRAM at long context |
 | `--flash-attn` | `on` | required for quantized KV |
 | `--cache-type-k` / `--cache-type-v` | `q8_0` / `turbo4` | asymmetric: 8-bit keys protect attention routing, turbo4 values save memory |
-| `--parallel` | `1` | **CRITICAL** — the `--parallel 4` default swaps KV to CPU RAM at long context |
+| `--parallel` | `1` | single user; auto would spawn 4 slots, but `kv_unified` shares one cache (no memory penalty), so `1` is just explicit |
 | `--jinja --reasoning-format auto` | | Gemma-4 is a thinking model; clients must read `reasoning_content` |
 
 Sampling (Google's Gemma-4 recommendations): `--temp 1.0 --top-p 0.95 --top-k 64`.
