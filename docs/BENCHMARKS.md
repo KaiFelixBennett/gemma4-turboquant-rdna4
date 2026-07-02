@@ -88,6 +88,23 @@ was llama-server's per-session state, which at 256K ctx with an SWA model is hug
 | SWA context checkpoints | 32/slot | 32 × 234 MiB ≈ **7.3 GB** | `--ctx-checkpoints 4` |
 | Prompt cache | 8192 MiB | up to **8 GB** | `--cache-ram 0` |
 
+#### Checkpoint size — measured (2026-07-02)
+
+Each SWA context checkpoint stores the SWA layers' KV state **in the KV cache's quantization
+format**. Its size therefore follows the cache type and is **independent of `--ctx-size`**
+(source: llama-server log `created context checkpoint N of 32 (…, size = X MiB)`,
+Gemma-4-31B Q4_K_M, `-b 2048 -ub 512 --parallel 1 --kv-unified`):
+
+| KV cache (K/V) | ctx 131072 | ctx 262144 |
+|----------------|------------|------------|
+| turbo3/turbo3 | 234.394 MiB | 234.394 MiB |
+| q8_0/q8_0 | 637.519 MiB | — |
+| f16/f16 | 1200.019 MiB | — |
+
+Checkpoints cannot be quantized separately — they inherit the KV cache type. A 3-bit cache
+thus also shrinks every checkpoint ~5× vs f16 (the default-32 checkpoint budget would be
+~37 GB with f16, ~7.3 GB with turbo3).
+
 With both caps, shared-memory spill dropped **13.8 → 1.35 GB** and live decode at ~176K
 recovered ~2.6× (0.85 → ~2.3 t/s). An A/B test of `--no-kv-unified` at the same depth
 *halved* decode (2.26 → 1.24 t/s) — keep `--kv-unified` enabled. Full setup + screenshots:

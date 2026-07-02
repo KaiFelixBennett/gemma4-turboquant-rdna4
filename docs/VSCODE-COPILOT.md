@@ -105,6 +105,11 @@ top of 29/32 GB dedicated. The cause was not the model or the KV cache — it wa
 | Prompt cache | 8192 MiB | up to **8 GB** |
 | OS / other apps (dwm, VS Code, browser) | — | ~3–4 GB GPU memory |
 
+> Measured 2026-07-02: a checkpoint's size follows the **KV-cache quant format** and is
+> independent of `--ctx-size` — per checkpoint on Gemma-4-31B: 234 MiB (turbo3), 638 MiB
+> (q8_0), 1200 MiB (f16). Checkpoints can't be quantized separately; they inherit the cache
+> type, so turbo3 also shrinks session state ~5× vs f16. Details: [BENCHMARKS.md](BENCHMARKS.md).
+
 With `--ctx-checkpoints 4 --cache-ram 0`, shared-memory spill dropped from **13.8 GB to
 1.35 GB** and live decode at ~176K recovered from 0.85 to ~2.3 t/s. The checkpoint cap
 trade-off: edits deep in the context roll back further (more re-prefill in that case) —
