@@ -196,13 +196,23 @@ with a Gemma-4 SWA-pattern parsing bug (see [SWA-BUG.md](SWA-BUG.md)):
 - **Needle**: `benchmarks/needle_test.py` against a running server (see QUALITY.md).
 - **KLD**: `llama-perplexity --kl-divergence` vs a saved f16 baseline, wikitext-2, `-c 512`.
 
-## 6. Dense model comparison: Qwen 3.6 27B
+## 6. Comparison model: Qwen 3.6 27B
 
-To understand when TurboQuant helps and when it hurts, we benchmarked a **dense** model
-(Qwen 3.6 27B, all layers global attention, no SWA) on the same hardware. This is the
-same GPU, same build, same methodology — only the model architecture differs.
+To understand when TurboQuant helps and when it hurts, we benchmarked a second model,
+Qwen 3.6 27B, on the same hardware. This is the same GPU, same build, same methodology —
+only the model architecture differs.
 
-**Model:** Qwen3.6-27B-Q4_K_M-mtp.gguf (15.65 GiB, 27.32B params, dense attention)
+> **Correction (2026-07-23):** this section originally described Qwen3.6-27B as "dense,
+> all layers global attention, no SWA" — that's wrong. Its published architecture
+> interleaves Gated DeltaNet (linear attention, O(n) recurrent state) with Gated Attention
+> (conventional, unbounded KV cache) at roughly a 3:1 ratio: only ~16 of 64 layers carry a
+> traditional KV cache at all. It doesn't use Sliding-Window-Attention like Gemma, but it's
+> not a "no cache-reduction" baseline either — see
+> [The KV-Cache of Small MoEs: Qwen3, Qwen3.5/3.6...](https://kaitchup.substack.com/p/the-kv-cache-of-small-moes-qwen3).
+> We have not independently re-verified the layer ratio on our own build; the measured
+> throughput numbers below are unaffected by this correction.
+
+**Model:** Qwen3.6-27B-Q4_K_M-mtp.gguf (15.65 GiB, 27.32B params)
 **Method:** llama-bench tg128, `-r 1`, `-b 2048 -ub 512`, flash-attn on
 
 ### Decode throughput by context depth
@@ -220,38 +230,38 @@ same GPU, same build, same methodology — only the model architecture differs.
 |---------|---------------|-------|--------|
 | 256K (turbo3) | 26.01 GB | 0.60 GB | ✅ fits |
 
-> **Decode at 256K was not measured for Qwen.** The dense 256K prefill (O(n²), no SWA) is
+> **Decode at 256K was not measured for Qwen.** The full-context prefill at 256K was
 > prohibitively long and the run was not captured. The deepest reliable Qwen decode point is
 > **13.47 t/s at 128K** (turbo3). The row above confirms only that the cache *loads* in VRAM.
 
 ### Key insight: TurboQuant is NOT a universal speed boost
 
-For **dense models at short/medium context**, TurboQuant is **slower** than f16:
+At short/medium context on this model, TurboQuant is **slower** than f16:
 
 - At 32K: turbo3 is 19% slower than f16 (19.48 vs 24.08 t/s)
 - At 4K: turbo3 is 8% slower (25.52 vs 27.62 t/s)
 
-The Walsh-Hadamard dequantization costs GPU cycles per token. When the KV cache fits
-entirely in VRAM (which it does at ≤32K for all configs), compression saves no bandwidth
-but adds dequant overhead → net slowdown.
+The reason is the dequantization. The smaller cache does save read bandwidth, but
+TurboQuant computes attention at full precision and converts the values back first —
+that cost cancels out the bandwidth saving, so there's no net speedup regardless of model.
 
 **TurboQuant becomes valuable only when the KV cache would otherwise spill to CPU RAM.**
 At 128K+, the compressed cache stays in VRAM while f16 would overflow → turbo3 enables
 long-context operation that would otherwise be impossible or catastrophically slow.
 
-### Why Gemma benefits more than Qwen
+### Gemma vs. Qwen
 
 | Model | Architecture | turbo3 @128K | f16 @32K |
 |-------|-------------|-------------|----------|
-| Gemma-4-31B | Hybrid SWA (~10 global layers) | 9.38 ± 0.93 | ~22.9 |
-| Qwen-3.6-27B | Dense (all global) | 13.47 | 24.08 |
+| Gemma-4-31B | Hybrid SWA (~10/60 layers keep full context) | 9.38 ± 0.93 | ~22.9 |
+| Qwen-3.6-27B | Hybrid Gated-DeltaNet/Attention (~16/64 layers keep full context) | 13.47 | 24.08 |
 
-Gemma's SWA means its KV cache grows slowly (only ~10/60 layers store full context),
-so turbo3's bandwidth savings always outweigh the dequant cost. Qwen's dense attention
-means the KV cache is large even at short context, but turbo3's compression ratio
-doesn't help until the cache is large enough to cause bandwidth pressure.
+Both models are hybrids that keep only a minority of layers on a conventional, growing
+KV cache — Gemma via windowing (SWA), Qwen via linear attention (Gated DeltaNet) for most
+layers. Neither is a "worst case" dense baseline; we don't currently have measurements on
+a model that uses full conventional attention on every layer.
 
-**Practical recommendation for dense models:**
+**Practical recommendation:**
 - **Short/medium context (<32K):** use f16 KV — faster AND higher quality
 - **Long context (32K–256K+):** use turbo3 KV — avoids VRAM spill, enables otherwise impossible context lengths
 
