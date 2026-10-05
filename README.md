@@ -59,6 +59,8 @@ Everything here was measured on real hardware; nothing is extrapolated.
 | **Decode** | **~22 tok/s** at low context → **9.4 tok/s at 128K** (turbo3, llama-bench) — vs ~1.3 if you hit the `-b 16384` batch trap |
 | **Quality (needle @ 8K–33K)** | `q8_0/turbo4` **9/9**, `turbo3/turbo3` **9/9** |
 
+> **More measurements on the same R9700:** [benchmark.securesight.ai](https://benchmark.securesight.ai) runs agentic coding sessions from a single prompt with Qwen3.8-27B and other models on this card and on an AMD AI MAX 395, with raw server logs ([repo](https://github.com/KaiFelixBennett/local-ai-amd-benchmark)).
+
 ---
 
 ## Does this apply to you?
@@ -342,6 +344,7 @@ gemma4-turboquant-rdna4/
 - [TheTom/llama-cpp-turboquant](https://github.com/TheTom/llama-cpp-turboquant) — llama.cpp fork with TurboQuant KV cache
 - [Reddit: Gemma-4 31B at 256K on RTX 5090](https://www.reddit.com/r/LocalLLaMA/comments/1sbdihw/) — cross-hardware reference
 - [llama.cpp Gemma-4 SWA discussion](https://github.com/ggml-org/llama.cpp/issues/21394)
+- [benchmark.securesight.ai](https://benchmark.securesight.ai) — agentic coding runs of local models on the R9700 and the AMD AI MAX 395, with raw logs
 
 ## Credits
 
